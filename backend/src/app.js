@@ -13,7 +13,7 @@ app.set("trust proxy", 1);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 
-// Pages embedded via <iframe> on urbancruise.in need frame-ancestors instead
+// Pages embedded via <iframe> on urbancruise.in need frame-ancestors test
 // of helmet's default X-Frame-Options: SAMEORIGIN, and need
 // Cross-Origin-Resource-Policy relaxed too — CORP: same-origin (helmet's
 // default) blocks cross-origin embedding independently of X-Frame-Options/CSP.
@@ -53,7 +53,7 @@ app.use(
   }),
 );
 
-app.use(express.json({ limit: "50mb" }));
+app.use(express.json({ limit: "10mb" }));
 app.use(express.urlencoded({ extended: true, limit: "50mb" }));
 
 app.use(express.static("public"));
