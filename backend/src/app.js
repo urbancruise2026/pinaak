@@ -5,11 +5,15 @@ import helmet from "helmet";
 import cookieParser from "cookie-parser";
 import { errorMiddleware } from "./middlewares/error.middleware.js";
 import allRoutes from "./routes/index.js";
+import healthRouter from "./module/Health/health.route.js";
 
 dotenv.config();
 const app = express();
 // Behind nginx: lets Express see the real client IP and https
 app.set("trust proxy", 1);
+
+// Health first: no CORS/helmet/body-parsing/auth overhead for probes
+app.use(["/health", "/api/v1/health"], healthRouter);
 
 app.use(helmet({ contentSecurityPolicy: false }));
 
