@@ -1,0 +1,14 @@
+{
+  "name": "pinaak",
+  "version": "1.0.0",
+  "description": "Pinaak monorepo - backend + frontend",
+  "private": true,
+  "scripts": {
+    "install:all": "node scripts/postinstall.mjs",
+    "setup": "node scripts/setup.mjs",
+    "postinstall": "node scripts/postinstall.mjs",
+    "build": "npm run install:all && npm run build --prefix frontend",
+    "start": "npm run start:prod --prefix backend",
+    "dev": "npm run start:local --prefix backend "
+  }
+}
