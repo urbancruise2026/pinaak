@@ -1,0 +1,87 @@
+# Auto-deploy Pinaak to the CloudPanel VPS on every push to main.
+# GitHub builds the app first. If the build fails, the server is never touched.
+name: Deploy Pinaak
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch: # lets you run it by hand from the Actions tab
+
+# Never run two deploys at the same time
+concurrency:
+  group: deploy-pinaak
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Get the code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js (same version as the server)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: |
+            frontend/package-lock.json
+            backend/package-lock.json
+
+      # ---------- Frontend: build the website into frontend/out ----------
+      - name: Install frontend packages
+        working-directory: frontend
+        run: npm ci --no-audit --no-fund
+
+      - name: Build frontend
+        working-directory: frontend
+        env:
+          NEXT_TELEMETRY_DISABLED: "1"
+        run: npm run build
+
+      - name: Check the website was built
+        run: test -f frontend/out/index.html || (echo "frontend/out/index.html missing" && exit 1)
+
+      # ---------- Backend: make sure it installs and has no syntax errors ----------
+      - name: Check backend packages install
+        working-directory: backend
+        run: npm ci --omit=dev --no-audit --no-fund
+
+      - name: Check backend code for syntax errors
+        working-directory: backend
+        run: find src -name "*.js" -print0 | xargs -0 -n1 node --check
+
+      # ---------- Pack everything into one file ----------
+      - name: Create release package
+        run: |
+          tar -czf release.tar.gz \
+            --exclude="backend/node_modules" \
+            --exclude="backend/.env*" \
+            --exclude="backend/serviceAccountKey.json" \
+            backend/package.json backend/package-lock.json backend/src \
+            frontend/out
+          ls -lh release.tar.gz
+
+      # ---------- Send it to the server ----------
+      - name: Set up SSH key
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.VPS_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          echo "${{ secrets.VPS_KNOWN_HOSTS }}" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy to server
+        run: |
+          ssh -i ~/.ssh/deploy_key \
+              -o IdentitiesOnly=yes \
+              -o ServerAliveInterval=30 \
+              "${{ secrets.VPS_USER }}@${{ secrets.VPS_HOST }}" \
+              "${{ github.sha }}" < release.tar.gz
+
+      - name: Remove SSH key
+        if: always()
+        run: rm -f ~/.ssh/deploy_key
