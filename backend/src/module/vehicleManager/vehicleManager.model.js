@@ -426,7 +426,7 @@ export const getAllVehicleManagersModel = async ({
     // =========================================================
     // EXECUTE MAIN QUERY
     // =========================================================
-    const [rows] = await pool.execute(query, params);
+    const [rows] = await pool.query(query, params);
 
     // =========================================================
     // EXECUTE COUNT QUERY

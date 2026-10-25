@@ -35,7 +35,7 @@ export const getCountries = async ({ page, limit } = {}) => {
   if (page && limit) {
     const offset = (Number(page) - 1) * Number(limit);
     const sql = `SELECT * FROM ${COUNTRY_TABLE} ORDER BY ${COUNTRY_COLUMNS.NAME} ASC LIMIT ? OFFSET ?`;
-    const [rows] = await pool.execute(sql, [Number(limit), offset]);
+    const [rows] = await pool.query(sql, [Number(limit), offset]);
     return rows;
   }
 

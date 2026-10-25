@@ -81,7 +81,7 @@ export const createRuleEntry = async ({
         month_leads,
         advisor_id,
         shift_timing,
-        lead,
+        \`lead\`,
         overflow
       )
       VALUES (?, ?, ?, ?, ?, ?, ?)`,
@@ -123,7 +123,7 @@ export const getRuleEntries = async ({ advisorIds } = {}) => {
        month_leads,
        advisor_id AS advisorId,
        shift_timing AS shiftTiming,
-       lead,
+       \`lead\`,
        overflow
      FROM rule_entries
      ${whereSQL}
@@ -173,7 +173,7 @@ export const updateRuleEntry = async (
         month_leads = ?,
         advisor_id = ?,
         shift_timing = ?,
-        lead = ?,
+        \`lead\` = ?,
         overflow = ?
      WHERE id = ?`,
     [

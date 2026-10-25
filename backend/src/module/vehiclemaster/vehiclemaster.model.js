@@ -210,7 +210,7 @@ export const getAllVehiclesModel = async ({
     params.push(Number(limit), Number(offset));
 
     // ===== EXECUTE =====
-    const [rows] = await pool.execute(query, params);
+    const [rows] = await pool.query(query, params);
 
     const [countRows] = await pool.execute(countQuery, countParams);
 
