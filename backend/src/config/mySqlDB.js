@@ -18,6 +18,20 @@ export const pool = mysql.createPool({
   maxIdle: 10,
 });
 
+// Old MariaDB server (Hostinger) ran in UTC, and the code depends on that:
+// DATE_ADD(created_at, INTERVAL 330 MINUTE), NOW() comparisons, and the
+// website_gac.created_at default all assume the DB session is UTC.
+// Force UTC on every new connection so behaviour stays the same no matter
+// what time zone the new MySQL server is set to.
+const forceUTC = (connection) => {
+  connection.query("SET time_zone = '+00:00'", (err) => {
+    if (err)
+      console.error("❌ Failed to set MySQL session time_zone:", err.message);
+  });
+};
+
+pool.on("connection", forceUTC);
+
 export const hrmsPool = mysql.createPool({
   host: process.env.HRMS_DB_HOST,
   user: process.env.HRMS_DB_USER,
@@ -31,6 +45,8 @@ export const hrmsPool = mysql.createPool({
   idleTimeout: 60000,
   maxIdle: 5,
 });
+
+hrmsPool.on("connection", forceUTC);
 
 // Pinaak Connection Test
 export const connectMySQL = async () => {

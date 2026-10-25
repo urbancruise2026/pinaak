@@ -193,7 +193,12 @@ export const getAllVehiclesModel = async ({
 
       if (variantArr.length > 0) {
         const variantConditions = variantArr
-          .map(() => `JSON_CONTAINS(variant, JSON_QUOTE(?))`)
+          .map(
+            // MySQL throws on rows whose variant isn't valid JSON (MariaDB just
+            // skipped them), so only run JSON_CONTAINS on valid JSON rows.
+            () =>
+              `(CASE WHEN JSON_VALID(variant) THEN JSON_CONTAINS(variant, JSON_QUOTE(?)) ELSE 0 END)`,
+          )
           .join(" OR ");
 
         query += ` AND (${variantConditions})`;
