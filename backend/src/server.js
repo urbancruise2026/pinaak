@@ -53,6 +53,24 @@ const start = async () => {
   const hasFrontend = fs.existsSync(path.join(frontendOutDir, "index.html"));
 
   if (hasFrontend) {
+    // FIX: WordPress page uses old links like /_next/image?url=...
+    // Static export has no such route, so find the real picture and send it.
+    const mediaDir = path.join(frontendOutDir, "_next", "static", "media");
+    app.get("/_next/image", (req, res) => {
+      const fileName = path.basename(String(req.query.url || "")); // tempo-traveller.xxxx.webp
+      const baseName = fileName.split(".")[0]; // tempo-traveller
+      if (!/^[a-z0-9_-]+$/i.test(baseName)) return res.status(400).end();
+
+      const files = fs.existsSync(mediaDir) ? fs.readdirSync(mediaDir) : [];
+      const match =
+        files.find((f) => f === fileName) ||
+        files.find((f) => f.startsWith(baseName + "."));
+      if (!match) return res.status(404).end();
+
+      res.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
+      res.setHeader("Cache-Control", "public, max-age=86400");
+      res.sendFile(path.join(mediaDir, match));
+    });
     app.use(
       express.static(frontendOutDir, {
         setHeaders(res, filePath) {
