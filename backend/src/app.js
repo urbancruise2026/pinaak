@@ -49,7 +49,9 @@ app.use(
       if (!origin) return callback(null, true);
       const normalized = origin.replace(/\/$/, "");
       if (allowedOrigins.includes(normalized)) return callback(null, true);
-      return callback(new Error(`CORS: origin ${origin} not allowed`));
+      console.warn(`⚠️ CORS blocked origin: ${origin}`);
+      // Don't throw (that becomes a 500); just omit CORS headers.
+      return callback(null, false);
     },
     credentials: true,
     methods: ["GET", "POST", "PUT", "PATCH", "DELETE"],

@@ -55,48 +55,80 @@ export const getAllWebsiteGac = async (city) => {
   }
 };
 
+// Helpers: mysql2 execute() throws on `undefined`, and MySQL strict mode
+// rejects ISO strings like "2026-10-30T10:00:00.000Z" for DATETIME columns.
+const toNull = (v) => (v === undefined || v === "" ? null : v);
+
+const toText = (v) => {
+  if (v === undefined || v === null || v === "") return null;
+  if (Array.isArray(v)) return v.filter(Boolean).join(", "); // multi-select checkboxes
+  if (typeof v === "object") return JSON.stringify(v);
+  return String(v).trim();
+};
+
+const toMySQLDateTime = (v) => {
+  if (!v) return null;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return toText(v); // let MySQL decide on odd formats
+  // Keep it in UTC to match the session time_zone set in mySqlDB.js
+  return d.toISOString().slice(0, 19).replace("T", " ");
+};
+
 export const createTripBookingModel = async (data) => {
-  const [result] = await pool.execute(
-    `INSERT INTO trip_bookings
-    (
-      firstName,
-      customerPhone,
-      country_code,
-      customerEmail,
-      message,
-      pickupAddress,
-      pickup_date,
-      dropAddress,
-      drop_date,
-      itinerary,
+  const params = [
+    toText(data.full_name),
+    toText(data.phone),
+    toText(data.country_code) ?? "+91",
+    toNull(toText(data.email)),
+    toNull(toText(data.trip_message)),
+    toText(data.pickup_address),
+    toMySQLDateTime(data.pickup_date),
+    toText(data.drop_address),
+    toMySQLDateTime(data.drop_date),
+    toText(data.travel_itinerary),
+    toText(data.passengers),
+    toText(data.baggages),
+    toText(data.vehicle_category),
+    toText(data.vehicle_model),
+    toText(data.city),
+  ];
 
-      passengerTotal,
-      baggageTotal,
-      vehicle_category,
-      vehicle_model,
-      city
-    )
-    VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
-    [
-      data.full_name,
-      data.phone,
-      data.country_code,
-      data.email,
-      data.trip_message,
-      data.pickup_address,
-      data.pickup_date,
-      data.drop_address,
-      data.drop_date,
-      data.travel_itinerary,
-      data.passengers,
-      data.baggages,
-      data.vehicle_category,
-      data.vehicle_model,
-      data.city, // 🆕 city value add ki
-    ],
-  );
+  try {
+    const [result] = await pool.execute(
+      `INSERT INTO trip_bookings
+      (
+        firstName,
+        customerPhone,
+        country_code,
+        customerEmail,
+        message,
+        pickupAddress,
+        pickup_date,
+        dropAddress,
+        drop_date,
+        itinerary,
+        passengerTotal,
+        baggageTotal,
+        vehicle_category,
+        vehicle_model,
+        city
+      )
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+      params,
+    );
 
-  return result.insertId;
+    return result.insertId;
+  } catch (error) {
+    // Log the real reason (Unknown column / Incorrect datetime / Data too long ...)
+    console.error(
+      "❌ createTripBookingModel failed:",
+      error.code,
+      error.sqlMessage || error.message,
+    );
+    throw new Error(
+      `createTripBookingModel failed: ${error.sqlMessage || error.message}`,
+    );
+  }
 };
 
 // ================= GET ALL TRIP BOOKINGS =================
