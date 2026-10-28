@@ -2,12 +2,11 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
-import { createPortal } from "react-dom";
 import SalesEditLeadForm from "@/features/telesales/components/salesEditLeadForm";
 import type { LeadRecord } from "@/types/types";
 import { useDispatch, useSelector } from "react-redux";
 import { AppDispatch, RootState } from "@/store/store";
-import RateQuotationModel from "@/features/rate-quotation/components/rateQuotationModel";
+import RateQuotationModel from "@/features/rate-quotation/components/rateQuotationFormComponents/RateQuotationForm";
 import Pagination from "@/components/ui/pagination";
 import LeadDetailsModel from "../../leads/components/LeadModel/leadTabledetailsmodel";
 import SwapSalesModal from "../../leads/components/LeadModel/SwapModel";
@@ -27,13 +26,7 @@ import {
   updateRealtimeAssignedLead,
 } from "@/features/user/accessSlice";
 
-import {
-  Eye,
-  Edit,
-  UserRoundPlus,
-  RefreshCw,
-  MessageCirclePlus,
-} from "lucide-react";
+import { Eye, Edit, RefreshCw, MessageCirclePlus } from "lucide-react";
 import {
   useLeadColumns,
   type LeadColumn,
@@ -44,7 +37,6 @@ import {
   listenToLeadUpdated,
   removeLeadListeners,
 } from "@/lib/socket/leadsocket";
-import { useAppSelector } from "@/hooks/useRedux";
 import LeadStatsHeader from "./TelesalesLeadsTable/LeadStatsHeader";
 import { AllRegionZoneCityFilter } from "@/components/ui/AllRegionZoneCityFilter";
 import MultiSelectDropdown from "./TelesalesLeadsTable/TelesalesLeadsTableDropdown";
@@ -54,13 +46,7 @@ import {
   paxOptions,
 } from "./TelesalesLeadsTable/TelesalesLeadsTableFilter";
 
-const CITY_OPTIONS = [
-  "Delhi",
-  "Mumbai",
-  "Chandigarh",
-  "Varanasi",
-  "Prayagraj",
-] as const;
+
 
 const YEAR_OPTIONS = ["All", "2025", "2026", "2027", "2028"] as const;
 
@@ -87,11 +73,8 @@ const BG_CLASS_TO_HEX: Record<string, string> = {
 
 export default function LeadsTable() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [paxDropdownStyle, setPaxDropdownStyle] = useState<React.CSSProperties>({})
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [cityFilter, setCityFilter] = useState<
-    "All" | (typeof CITY_OPTIONS)[number]
-  >("All");
+  const [cityFilter] = useState<"All" | (typeof CITY_OPTIONS)[number]>("All");
   const [selectedMonth, setSelectedMonth] = useState<string | null>(null);
   const [yearFilter, setYearFilter] =
     useState<(typeof YEAR_OPTIONS)[number]>("All");
@@ -106,49 +89,44 @@ export default function LeadsTable() {
   const [endMonth, setEndMonth] = useState("");
   const [startType, setStartType] = useState("text");
   const [endType, setEndType] = useState("text");
-  const [selectedPax, setSelectedPax] = useState<number[]>([]);
-  const [paxOpen, setPaxOpen] = useState(false);
-  const [selectedDays, setSelectedDays] = useState<number[]>([]);
-  const [daysOpen, setDaysOpen] = useState(false);
+  const [selectedPax] = useState<number[]>([]);
+  const [selectedDays] = useState<number[]>([]);
   const [detailLead, setDetailLead] = useState<LeadRecord | null>(null);
   const [isEditMode, setIsEditMode] = useState(false);
   const [freezeKey, setFreezeKey] = useState<string | null>(null);
   const [isDetailModalOpen, setIsDetailModalOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const rowsPerPage = 50;
-  const paxBtnRef = useRef<HTMLButtonElement>(null);
-  const daysBtnRef = useRef<HTMLButtonElement>(null);
-  const daysDropdownRef = useRef<HTMLDivElement>(null);
-  const paxDropdownRef = useRef<HTMLDivElement>(null);
+
+  // ✅ Rate Quotation full-page mode state
   const [rateQuotationLead, setRateQuotationLead] = useState<LeadRecord | null>(
     null,
   );
+
   const [isSwapModalOpen, setIsSwapModalOpen] = useState(false);
   const [selectedLead, setSelectedLead] = useState<LeadRecord | null>(null);
 
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [, setIsAssignModalOpen] = useState(false);
 
   const [followUpLead, setFollowUpLead] = useState<LeadRecord | null>(null);
   const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
+
   // ─── Live/Expiry filter state ──────────────────────────────────────────────
   const [liveorexpiryFilter, setLiveorexpiryFilter] = useState<string>("All");
 
-  // ✅ Age/Days/Pax filters are all arrays — MultiSelectDropdown returns
-  // multiple selected values, and the backend expects an array to build an
-  // OR condition across ranges.
+  // Age/Days/Pax filters are arrays (multi-select, backend builds OR across ranges)
   const [ageFilter, setAgeFilter] = useState<string[]>([]);
   const [daysFilter, setDaysFilter] = useState<string[]>([]);
   const [paxFilter, setPaxFilter] = useState<string[]>([]);
 
-  // ─── States (type fix + naya cityId state) ─────────────────────────────────
+  // ─── Region / Zone / City ──────────────────────────────────────────────────
   const [selectedRegion, setSelectedRegion] = useState("");
   const [selectedRegionId, setSelectedRegionId] = useState<number | null>(null);
-  const [selectedCity, setSelectedCity] = useState(""); // dropdown value (string id)
+  const [selectedCity, setSelectedCity] = useState("");
   const [selectedCityId, setSelectedCityId] = useState<number | null>(null);
 
   const [selectedZone, setSelectedZone] = useState("");
   const [selectedZoneId, setSelectedZoneId] = useState<number | null>(null);
-  const [daysDropdownStyle, setDaysDropdownStyle] = useState<React.CSSProperties>({});
 
   const dispatch = useDispatch<AppDispatch>();
 
@@ -162,7 +140,6 @@ export default function LeadsTable() {
     error,
     totalPages,
     total,
-    totalLeads,
     statusCounts,
     monthlyStats,
     zonesAdvisors,
@@ -174,9 +151,7 @@ export default function LeadsTable() {
     return () => clearTimeout(t);
   }, [searchTerm]);
 
-  // ✅ ageFilter added to page-reset effect
-  // ─── Page reset effect ──────────────────────────────────────────────────────
-
+  // ─── Socket listeners ──────────────────────────────────────────────────────
   useEffect(() => {
     if (!currentUser) return;
 
@@ -195,24 +170,22 @@ export default function LeadsTable() {
     };
   }, [currentUser, dispatch]);
 
-  // ✅ ageFilter/daysFilter/paxFilter go straight to the backend as arrays
-  // ─── buildFetchArgs (yahi backend tak data bhejta hai) ─────────────────────
+  // ─── buildFetchArgs ────────────────────────────────────────────────────────
   const buildFetchArgs = useCallback(
     (page: number) => ({
       page,
       search: debouncedSearch.trim() || undefined,
       cityIds: selectedCityId
-        ? [selectedCityId] // ✅ dropdown se selected city
+        ? [selectedCityId]
         : cityFilter !== "All" && CITY_ID_MAP[cityFilter]
-          ? [CITY_ID_MAP[cityFilter]] // fallback: purana hardcoded filter
+          ? [CITY_ID_MAP[cityFilter]]
           : undefined,
       month: selectedMonth ? parseInt(selectedMonth) : null,
       year: yearFilter !== "All" ? parseInt(yearFilter) : null,
       advisorId: selectedAdvisorId ?? undefined,
       status: statusFilter !== "All" ? statusFilter : undefined,
       regionId: selectedRegionId ?? null,
-      zoneId: selectedZoneId ?? null, // ✅ dropdown se selected zone
-      // ✅ send as arrays (only when something is actually selected)
+      zoneId: selectedZoneId ?? null,
       ageFilter: ageFilter.length > 0 ? ageFilter : undefined,
       daysFilter: daysFilter.length > 0 ? daysFilter : undefined,
       paxFilter: paxFilter.length > 0 ? paxFilter : undefined,
@@ -221,8 +194,8 @@ export default function LeadsTable() {
     [
       debouncedSearch,
       cityFilter,
-      selectedCityId, // ✅ add
-      selectedRegionId, // ✅
+      selectedCityId,
+      selectedRegionId,
       selectedZoneId,
       selectedMonth,
       yearFilter,
@@ -235,13 +208,13 @@ export default function LeadsTable() {
     ],
   );
 
-  // ─── Page reset effect ──────────────────────────────────────────────────────
+  // ─── Page reset effect ─────────────────────────────────────────────────────
   useEffect(() => {
     setCurrentPage(1);
   }, [
     debouncedSearch,
     cityFilter,
-    selectedCityId, // ✅ add
+    selectedCityId,
     selectedRegionId,
     selectedZoneId,
     selectedMonth,
@@ -253,12 +226,12 @@ export default function LeadsTable() {
     paxFilter,
   ]);
 
-  // ─── Main fetch ─────────────────────────────────────────────────────────────
-  // ─── Main fetch effect — already theek hai, kyuki buildFetchArgs use ho raha hai
+  // ─── Main fetch ────────────────────────────────────────────────────────────
   useEffect(() => {
     dispatch(fetchMyAssignedLeads(buildFetchArgs(currentPage)));
   }, [dispatch, currentPage, buildFetchArgs]);
-  // ─── Handlers ────────────────────────────────────────────────────────────
+
+  // ─── Handlers ──────────────────────────────────────────────────────────────
   const handleRegionChange = (regionId: string) => {
     setSelectedRegion(regionId);
     setSelectedRegionId(regionId ? Number(regionId) : null);
@@ -275,12 +248,12 @@ export default function LeadsTable() {
 
   const handleZoneChange = (zone: string) => {
     setSelectedZone(zone);
-    setSelectedZoneId(zone ? Number(zone) : null); // ✅ id backend ke liye taiyar
+    setSelectedZoneId(zone ? Number(zone) : null);
   };
 
   const handleCityChange = (city: string) => {
     setSelectedCity(city);
-    setSelectedCityId(city ? Number(city) : null); // ✅ id backend ke liye taiyar
+    setSelectedCityId(city ? Number(city) : null);
   };
 
   useEffect(() => {
@@ -292,7 +265,6 @@ export default function LeadsTable() {
       window.removeEventListener("leadSubmitted", handleLeadSubmitted);
   }, [dispatch]);
 
-  // ─── Handlers ─────────────────────────────────────────────────────────────
   const handlePageChange = (page: number) => setCurrentPage(page);
 
   const handleStatusChange = (val: "All" | LeadRecord["status"]) => {
@@ -300,79 +272,23 @@ export default function LeadsTable() {
     dispatch(setAssignedStatus(val));
     setCurrentPage(1);
   };
+
   const handleLiveorexpiryChange = (value: string) => {
     setLiveorexpiryFilter(value);
     setCurrentPage(1);
   };
-  const togglePax = () => {
-    if (!paxOpen) {
-      const rect = paxBtnRef.current?.getBoundingClientRect();
-      if (rect)
-        setPaxDropdownStyle({
-          top: rect.bottom + window.scrollY,
-          left: rect.left + window.scrollX,
-          width: rect.width,
-        });
-    }
-    setPaxOpen((prev) => !prev);
-  };
 
-  const toggleDays = () => {
-    if (!daysOpen) {
-      const rect = daysBtnRef.current?.getBoundingClientRect();
-      if (rect)
-        setDaysDropdownStyle({
-          top: rect.bottom + window.scrollY,
-          left: rect.left + window.scrollX,
-          width: rect.width,
-        });
-    }
-    setDaysOpen((prev) => !prev);
-  };
-
-  // ─── Click outside dropdowns ──────────────────────────────────────────────
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (daysDropdownRef.current?.contains(event.target as Node)) return;
-      if (
-        daysBtnRef.current &&
-        !daysBtnRef.current.contains(event.target as Node)
-      )
-        setDaysOpen(false);
-    };
-    if (daysOpen) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [daysOpen]);
-
-  useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (paxDropdownRef.current?.contains(event.target as Node)) return;
-      if (
-        paxBtnRef.current &&
-        !paxBtnRef.current.contains(event.target as Node)
-      )
-        setPaxOpen(false);
-    };
-    if (paxOpen) document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, [paxOpen]);
-
-  // ─── Stabilise callbacks passed to useLeadColumns ────────────────────────
+  // ─── Stabilise callbacks passed to useLeadColumns ─────────────────────────
   const handleUnwantedClick = useCallback(() => {}, []);
   const handleViewLead = useCallback(() => {}, []);
   const setEditLead = useCallback(() => {}, []);
 
-  // ─── Columns ──────────────────────────────────────────────────────────────
+  // ─── Columns ───────────────────────────────────────────────────────────────
   const hookColumns = useLeadColumns({
     handleUnwantedClick,
     handleViewLead,
     setEditLead,
   });
-
-  const handleSwapClick = (lead: LeadRecord) => {
-    setSelectedLead(lead);
-    setIsSwapModalOpen(true);
-  };
 
   const handleCloseModal = () => {
     setIsAssignModalOpen(false);
@@ -380,13 +296,12 @@ export default function LeadsTable() {
     setSelectedLead(null);
   };
 
-  // Stabilise the actions column – it's defined outside, so it's already stable.
   const actionsColumn: LeadColumn = {
     key: "actions",
     label: "Actions",
     render: (lead: LeadRecord) => (
       <div className="flex gap-1 justify-evenly">
-        {/* Rate Quotation Button */}
+        {/* Rate Quotation Button → full page (like Edit) */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -410,6 +325,7 @@ export default function LeadsTable() {
         >
           <Eye size={14} />
         </button>
+
         {/* Edit Button */}
         <button
           onClick={(e) => {
@@ -422,6 +338,8 @@ export default function LeadsTable() {
         >
           <Edit size={14} />
         </button>
+
+        {/* Follow Up Button */}
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -433,14 +351,12 @@ export default function LeadsTable() {
         >
           <MessageCirclePlus size={20} />
         </button>
+
+        {/* Swap Advisor (City Manager only) */}
         {currentUser?.role_name === "City Manager" && (
           <button
             onClick={(e) => {
               e.stopPropagation();
-
-              console.log("Swap Button Clicked");
-              console.log("Lead:", lead);
-
               setSelectedLead(lead);
               setIsSwapModalOpen(true);
             }}
@@ -456,11 +372,11 @@ export default function LeadsTable() {
     sticky: false,
   };
 
-  // ─── Memoise columns – remove detailLead from deps because not used ─────
   const columns: LeadColumn[] = useMemo(() => {
     const withoutActions = hookColumns.filter((col) => col.key !== "actions");
     return [actionsColumn, ...withoutActions];
-  }, [hookColumns]); // ← removed detailLead
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hookColumns, currentUser?.role_name]);
 
   // ─── Banner columns meta ───────────────────────────────────────────────────
   const bannerColumnsMeta = useMemo(() => {
@@ -497,7 +413,7 @@ export default function LeadsTable() {
   const theadRef = useRef<HTMLTableSectionElement>(null);
   const [colWidths, setColWidths] = useState<number[]>([]);
 
-  // ─── Measurement effect – now stable dependencies ──────────────────────
+  // ─── Column width measurement ──────────────────────────────────────────────
   useEffect(() => {
     const measure = () => {
       if (!theadRef.current) return;
@@ -510,7 +426,7 @@ export default function LeadsTable() {
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
-  }, [bannerColumnsMeta, freezeIndex]); // these are now stable
+  }, [bannerColumnsMeta, freezeIndex]);
 
   const calcStickyLeft = useCallback(
     (colIndex: number): number => {
@@ -520,7 +436,7 @@ export default function LeadsTable() {
     [colWidths],
   );
 
-  // ─── Banner group builder (flat list) ─────────────────────────────────────
+  // ─── Banner group builder ──────────────────────────────────────────────────
   const buildBannerGroups = (
     cols: typeof bannerColumnsMeta,
   ): Array<{
@@ -577,10 +493,6 @@ export default function LeadsTable() {
     "All",
     ...LEAD_STATUS_OPTIONS,
   ];
-  const cityOptions: ("All" | (typeof CITY_OPTIONS)[number])[] = [
-    "All",
-    ...CITY_OPTIONS,
-  ];
 
   // ─── Client-side filters: date range + pax + days + liveorexpiry ──────────
   const filteredLeads = useMemo(() => {
@@ -627,33 +539,24 @@ export default function LeadsTable() {
     liveorexpiryFilter,
   ]);
 
-  // ─── Stats ────────────────────────────────────────────────────────────────
+  // ─── Stats ─────────────────────────────────────────────────────────────────
   const totalLeadsCount = total || 0;
-  const newLeads = Number(statusCounts?.NEW ?? 0);
-  const kycLeads = Number(statusCounts?.KYC ?? 0);
-  const rfqLeads = Number(statusCounts?.RFQ ?? 0);
-  const hotLeads = Number(statusCounts?.HOT ?? 0);
-  const vehnLeads = Number(statusCounts?.["VEH-N"] ?? 0);
-  const lostLeads = Number(statusCounts?.LOST ?? 0);
-  const bookLeads = Number(statusCounts?.BOOK ?? 0);
-
   const statusCountMap: Record<string, number> = {
-    NEW: newLeads,
-    KYC: kycLeads,
-    RFQ: rfqLeads,
-    HOT: hotLeads,
-    "VEH-N": vehnLeads,
-    LOST: lostLeads,
-    BOOK: bookLeads,
+    NEW: Number(statusCounts?.NEW ?? 0),
+    KYC: Number(statusCounts?.KYC ?? 0),
+    RFQ: Number(statusCounts?.RFQ ?? 0),
+    HOT: Number(statusCounts?.HOT ?? 0),
+    "VEH-N": Number(statusCounts?.["VEH-N"] ?? 0),
+    LOST: Number(statusCounts?.LOST ?? 0),
+    BOOK: Number(statusCounts?.BOOK ?? 0),
   };
 
-  // ─── Edit mode ─────────────────────────────────────────────────────────────
+  // ─── Edit mode (full page) ─────────────────────────────────────────────────
   if (detailLead && isEditMode) {
     return (
       <div className="w-full">
         <SalesEditLeadForm
           initialData={detailLead}
-          // isEditMode={isEditMode}
           onSuccess={() => {
             setDetailLead(null);
             setIsEditMode(false);
@@ -663,6 +566,19 @@ export default function LeadsTable() {
             setDetailLead(null);
             setIsEditMode(false);
           }}
+        />
+      </div>
+    );
+  }
+
+  // ─── Rate Quotation mode (full page, same as Edit) ─────────────────────────
+  if (rateQuotationLead) {
+    return (
+      <div className="w-full">
+        <RateQuotationModel
+          lead={rateQuotationLead}
+          isOpen={true}
+          onClose={() => setRateQuotationLead(null)}
         />
       </div>
     );
@@ -728,7 +644,7 @@ export default function LeadsTable() {
               </select>
             </div>
 
-            {/* Age Filter — checkbox multi-select, same pattern as Days/Pax */}
+            {/* Age Filter */}
             <div className="flex flex-col gap-1">
               <MultiSelectDropdown
                 label="Age"
@@ -893,7 +809,6 @@ export default function LeadsTable() {
                 </div>
               )}
 
-              {/* ✅ FIX: pass/receive string[] (multi-select) instead of a single string */}
               <MultiSelectDropdown
                 label="Days"
                 options={daysOptions}
@@ -936,6 +851,7 @@ export default function LeadsTable() {
             </div>
           </div>
         </div>
+
         {/* ── Table Container ── */}
         <div className="mt-2 bg-white border shadow-sm rounded-3xl border-white w-full flex flex-col">
           <div
@@ -1137,15 +1053,7 @@ export default function LeadsTable() {
         />
       )}
 
-      {/* Rate Quotation Modal */}
-      {rateQuotationLead && (
-        <RateQuotationModel
-          lead={rateQuotationLead}
-          isOpen={true}
-          onClose={() => setRateQuotationLead(null)}
-        />
-      )}
-
+      {/* Swap Advisor Modal */}
       {isSwapModalOpen && selectedLead && (
         <SwapSalesModal
           isOpen={isSwapModalOpen}
