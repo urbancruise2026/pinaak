@@ -10,7 +10,6 @@ interface ApiResponse<T> {
 
 export const createDsrApi = async (dsrData: Record<string, any>) => {
   try {
-    console.log("Create DSR Payload:", dsrData);
     const response = await axiosInstance.post<ApiResponse<any>>(
       "/dsr/create",
       dsrData,
@@ -35,7 +34,6 @@ export const updateDsrApi = async (
   dsrData: Record<string, any>,
 ) => {
   try {
-    console.log("Update DSR Payload:", { id, data: dsrData });
     const response = await axiosInstance.put<ApiResponse<any>>(
       `/dsr/${id}`,
       dsrData,

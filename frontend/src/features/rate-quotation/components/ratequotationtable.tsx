@@ -2,7 +2,10 @@
 
 import React, { useState } from "react";
 import RateQuotationModel from "./rateQuotationFormComponents/RateQuotationForm";
+import BookingConfirmationForm from "@/features/rate-quotation/components/BookingConfirmationFormComponents/BookingConfirmationForm";
 import QuotationPdf from "@/features/rate-quotation/components/quotation";
+import BookingAssignmentForm from "@/features/rate-quotation/components/booking-assignment";
+import DutySlipForm from "@/features/rate-quotation/components/duty-slip";
 import {
   Search,
   RefreshCw,
@@ -11,6 +14,9 @@ import {
   Pencil,
   Link,
   Eye,
+  FileCheck,
+  ClipboardCheck,
+  ScrollText,
 } from "lucide-react";
 
 const DUMMY_RATE_LIST = [
@@ -19,37 +25,28 @@ const DUMMY_RATE_LIST = [
     lead_id: "UC-2026-001",
     quotation_no: "QT-2026-00001",
     quote_no: "QT-2026-00001",
-
     fullName: "Rahul Sharma",
     companyName: "ABC Travels",
     customerCity: "Delhi",
     advisorShortName: "Amit",
-
     created_at: "2026-10-22T10:30:00",
     valid_till: "2026-10-29",
     validTill: "2026-10-29",
-
     pickupDate: "2026-11-05",
     pickupTime: "6:30 AM",
     pickupLocation: "Delhi Airport",
-
     dropDate: "2026-11-09",
     dropTime: "8:30 PM",
     dropLocation: "Mumbai Airport",
-
     duration: "5 Days",
     days: 5,
     tripType: "One Way Drop",
     passangerTotal: 4,
     passengerTotal: 4,
-
     routeDetails: "Delhi Airport → Agra → Jaipur → Udaipur → Mumbai Airport",
-
     remarks:
       "Airport pickup, luggage assistance required. AC vehicle preferred.",
-
     contactNumber: "+91 98765 43210",
-
     vehicles: [
       {
         id: 1,
@@ -71,43 +68,33 @@ const DUMMY_RATE_LIST = [
       },
     ],
   },
-
   {
     id: 2,
     lead_id: "UC-2026-002",
     quotation_no: "QT-2026-00002",
     quote_no: "QT-2026-00002",
-
     fullName: "Priya Verma",
     companyName: "Verma Holidays",
     customerCity: "Gurugram",
     advisorShortName: "Neha",
-
     created_at: "2026-10-21T12:15:00",
     valid_till: "2026-10-28",
     validTill: "2026-10-28",
-
     pickupDate: "2026-11-10",
     pickupTime: "7:00 AM",
     pickupLocation: "Gurugram Railway Station",
-
     dropDate: "2026-11-12",
     dropTime: "6:00 PM",
     dropLocation: "Manali Hotel",
-
     duration: "3 Days",
     days: 3,
     tripType: "Round Trip",
     passangerTotal: 10,
     passengerTotal: 10,
-
     routeDetails: "Gurugram → Chandigarh → Manali → Solang Valley → Gurugram",
-
     remarks:
       "Family trip. Extra luggage space and comfortable seating required.",
-
     contactNumber: "+91 98765 43211",
-
     vehicles: [
       {
         id: 1,
@@ -120,43 +107,33 @@ const DUMMY_RATE_LIST = [
       },
     ],
   },
-
   {
     id: 3,
     lead_id: "UC-2026-003",
     quotation_no: "QT-2026-00003",
     quote_no: "QT-2026-00003",
-
     fullName: "Aman Gupta",
     companyName: "Gupta Enterprises",
     customerCity: "Noida",
     advisorShortName: "Rohit",
-
     created_at: "2026-10-20T09:45:00",
     valid_till: "2026-10-27",
     validTill: "2026-10-27",
-
     pickupDate: "2026-11-15",
     pickupTime: "5:30 AM",
     pickupLocation: "Noida Sector 18",
-
     dropDate: "2026-11-19",
     dropTime: "9:00 PM",
     dropLocation: "Noida Sector 18",
-
     duration: "5 Days",
     days: 5,
     tripType: "Round Trip",
     passangerTotal: 25,
     passengerTotal: 25,
-
     routeDetails: "Noida → Haridwar → Rishikesh → Mussoorie → Dehradun → Noida",
-
     remarks:
       "Corporate group trip. Multiple sightseeing stops and luggage space required.",
-
     contactNumber: "+91 98765 43212",
-
     vehicles: [
       {
         id: 1,
@@ -187,42 +164,32 @@ const DUMMY_RATE_LIST = [
       },
     ],
   },
-
   {
     id: 4,
     lead_id: "UC-2026-004",
     quotation_no: "QT-2026-00004",
     quote_no: "QT-2026-00004",
-
     fullName: "Sneha Singh",
     companyName: "Singh Events",
     customerCity: "Delhi",
     advisorShortName: "Pooja",
-
     created_at: "2026-10-19T14:20:00",
     valid_till: "2026-10-26",
     validTill: "2026-10-26",
-
     pickupDate: "2026-11-20",
     pickupTime: "9:00 AM",
     pickupLocation: "Connaught Place, Delhi",
-
     dropDate: "2026-11-20",
     dropTime: "8:00 PM",
     dropLocation: "Aerocity, Delhi",
-
     duration: "1 Day",
     days: 1,
     tripType: "Local",
     passangerTotal: 3,
     passengerTotal: 3,
-
     routeDetails: "Connaught Place → India Gate → Qutub Minar → Aerocity",
-
     remarks: "Event transportation. Vehicle must be clean and air-conditioned.",
-
     contactNumber: "+91 98765 43213",
-
     vehicles: [
       {
         id: 1,
@@ -235,43 +202,33 @@ const DUMMY_RATE_LIST = [
       },
     ],
   },
-
   {
     id: 5,
     lead_id: "UC-2026-005",
     quotation_no: "QT-2026-00005",
     quote_no: "QT-2026-00005",
-
     fullName: "Vikash Kumar",
     companyName: "Kumar Tours",
     customerCity: "Mumbai",
     advisorShortName: "Amit",
-
     created_at: "2026-10-18T11:00:00",
     valid_till: "2026-10-25",
     validTill: "2026-10-25",
-
     pickupDate: "2026-12-01",
     pickupTime: "6:00 AM",
     pickupLocation: "Mumbai Central Railway Station",
-
     dropDate: "2026-12-05",
     dropTime: "7:30 PM",
     dropLocation: "Pune Railway Station",
-
     duration: "5 Days",
     days: 5,
     tripType: "Outstation",
     passangerTotal: 12,
     passengerTotal: 12,
-
     routeDetails: "Mumbai → Lonavala → Mahabaleshwar → Panchgani → Pune",
-
     remarks:
       "Outstation family tour. Hill driving experience and sufficient luggage capacity required.",
-
     contactNumber: "+91 98765 43214",
-
     vehicles: [
       {
         id: 1,
@@ -300,15 +257,19 @@ const LIMIT = 50;
 export default function RateQuotationTable() {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [selectedItem, setSelectedItem] = useState<any>(null);
+
   const [isPdfOpen, setIsPdfOpen] = useState(false);
   const [selectedQuotation, setSelectedQuotation] = useState<any>(null);
 
-  // ==========================================
-  // USE DUMMY DATA INSTEAD OF REDUX/API DATA
-  // ==========================================
+  const [bookingConfirmationItem, setBookingConfirmationItem] =
+    useState<any>(null);
+  const [assignmentItem, setAssignmentItem] = useState<any>(null);
+  const [dutySlipItem, setDutySlipItem] = useState<any>(null);
 
+  // FILTER DATA
   const filteredData = DUMMY_RATE_LIST.filter((item) => {
     const searchText = search.trim().toLowerCase();
 
@@ -340,10 +301,7 @@ export default function RateQuotationTable() {
     ...rateList.map((item) => item.vehicles.length),
   );
 
-  // ==========================================
   // HANDLERS
-  // ==========================================
-
   const handleSearch = () => {
     setCurrentPage(1);
   };
@@ -357,6 +315,10 @@ export default function RateQuotationTable() {
   const handleEdit = (item: any) => {
     setSelectedItem(item);
     setIsEditOpen(true);
+    setIsPdfOpen(false);
+    setBookingConfirmationItem(null);
+    setAssignmentItem(null);
+    setDutySlipItem(null);
   };
 
   const handleGenerateLink = async (item: any) => {
@@ -373,6 +335,40 @@ export default function RateQuotationTable() {
   const handleView = (item: any) => {
     setSelectedQuotation(item);
     setIsPdfOpen(true);
+    setIsEditOpen(false);
+    setBookingConfirmationItem(null);
+    setAssignmentItem(null);
+    setDutySlipItem(null);
+  };
+
+  const handleBookingConfirmation = (item: any) => {
+    setBookingConfirmationItem(item);
+    setIsEditOpen(false);
+    setIsPdfOpen(false);
+    setSelectedItem(null);
+    setSelectedQuotation(null);
+    setAssignmentItem(null);
+    setDutySlipItem(null);
+  };
+
+  const handleBookingAssignment = (item: any) => {
+    setAssignmentItem(item);
+    setDutySlipItem(null);
+    setBookingConfirmationItem(null);
+    setIsEditOpen(false);
+    setIsPdfOpen(false);
+    setSelectedItem(null);
+    setSelectedQuotation(null);
+  };
+
+  const handleDutySlip = (item: any) => {
+    setDutySlipItem(item);
+    setAssignmentItem(null);
+    setBookingConfirmationItem(null);
+    setIsEditOpen(false);
+    setIsPdfOpen(false);
+    setSelectedItem(null);
+    setSelectedQuotation(null);
   };
 
   const handleRefresh = () => {
@@ -382,7 +378,33 @@ export default function RateQuotationTable() {
     setIsPdfOpen(false);
     setSelectedItem(null);
     setSelectedQuotation(null);
+    setBookingConfirmationItem(null);
+    setAssignmentItem(null);
+    setDutySlipItem(null);
   };
+
+  // FULL-PAGE BOOKING CONFIRMATION
+  if (bookingConfirmationItem) {
+    return (
+      <div className="min-h-screen w-full bg-gray-50">
+        <BookingConfirmationForm
+          lead={bookingConfirmationItem}
+          isOpen={true}
+          onClose={() => setBookingConfirmationItem(null)}
+        />
+      </div>
+    );
+  }
+
+  // FULL-PAGE BOOKING ASSIGNMENT
+  if (assignmentItem) {
+    return <BookingAssignmentForm onClose={() => setAssignmentItem(null)} />;
+  }
+
+  // FULL-PAGE DUTY SLIP
+  if (dutySlipItem) {
+    return <DutySlipForm onClose={() => setDutySlipItem(null)} />;
+  }
 
   return (
     <div className="w-full overflow-hidden rounded-xl bg-white shadow-lg">
@@ -443,17 +465,22 @@ export default function RateQuotationTable() {
       <div className="w-full overflow-x-auto">
         <table className="border-collapse text-sm" style={{ minWidth: "100%" }}>
           <thead>
-            {/* MAIN HEADER */}
             <tr className="bg-gray-100 text-xs uppercase text-gray-600">
               <th className="border p-3 text-center" rowSpan={2}>
                 #
               </th>
 
-              <th className="border p-3 text-center" rowSpan={2}>
+              <th
+                className="whitespace-nowrap border p-3 text-center"
+                rowSpan={2}
+              >
                 Actions
               </th>
 
-              <th className="border p-3 text-left" rowSpan={2}>
+              <th
+                className="whitespace-nowrap border p-3 text-left"
+                rowSpan={2}
+              >
                 Lead ID
               </th>
 
@@ -480,16 +507,12 @@ export default function RateQuotationTable() {
               ))}
             </tr>
 
-            {/* VEHICLE SUBHEADERS */}
             <tr className="bg-blue-50 text-xs uppercase text-blue-700">
               {Array.from({ length: maxVehicles }).map((_, i) => (
                 <React.Fragment key={i}>
                   <th className="whitespace-nowrap border p-2">Type</th>
-
                   <th className="whitespace-nowrap border p-2">Category</th>
-
                   <th className="whitespace-nowrap border p-2">Description</th>
-
                   <th className="whitespace-nowrap border p-2 text-right">
                     Amount
                   </th>
@@ -524,7 +547,41 @@ export default function RateQuotationTable() {
 
                     {/* ACTIONS */}
                     <td className="border p-3">
-                      <div className="flex items-center justify-center gap-2">
+                      <div className="flex min-w-max items-center justify-center gap-2">
+                        {/* BOOKING CONFIRMATION */}
+                        <button
+                          type="button"
+                          onClick={() => handleBookingConfirmation(item)}
+                          title="Booking Confirmation"
+                          aria-label="Booking Confirmation"
+                          className="rounded-lg border border-amber-700 bg-amber-50 p-2 text-amber-900 transition hover:bg-amber-100 focus:outline-none focus:ring-2 focus:ring-amber-300"
+                        >
+                          <FileCheck size={16} />
+                        </button>
+
+                        {/* BOOKING ASSIGNMENT */}
+                        <button
+                          type="button"
+                          onClick={() => handleBookingAssignment(item)}
+                          title="Booking Assignment"
+                          aria-label="Booking Assignment"
+                          className="rounded-lg border border-indigo-600 bg-indigo-50 p-2 text-indigo-700 transition hover:bg-indigo-100 focus:outline-none focus:ring-2 focus:ring-indigo-300"
+                        >
+                          <ClipboardCheck size={16} />
+                        </button>
+
+                        {/* DUTY SLIP */}
+                        <button
+                          type="button"
+                          onClick={() => handleDutySlip(item)}
+                          title="Duty Slip"
+                          aria-label="Duty Slip"
+                          className="rounded-lg border border-teal-600 bg-teal-50 p-2 text-teal-700 transition hover:bg-teal-100 focus:outline-none focus:ring-2 focus:ring-teal-300"
+                        >
+                          <ScrollText size={16} />
+                        </button>
+
+                        {/* VIEW QUOTATION */}
                         <button
                           type="button"
                           onClick={() => handleView(item)}
@@ -535,6 +592,7 @@ export default function RateQuotationTable() {
                           <Eye size={16} />
                         </button>
 
+                        {/* EDIT QUOTATION */}
                         <button
                           type="button"
                           onClick={() => handleEdit(item)}
@@ -545,6 +603,7 @@ export default function RateQuotationTable() {
                           <Pencil size={16} />
                         </button>
 
+                        {/* COPY QUOTATION LINK */}
                         <button
                           type="button"
                           onClick={() => handleGenerateLink(item)}
@@ -675,7 +734,7 @@ export default function RateQuotationTable() {
         </div>
       </div>
 
-      {/* EDIT MODAL */}
+      {/* EDIT QUOTATION */}
       {isEditOpen && (
         <RateQuotationModel
           isOpen={isEditOpen}

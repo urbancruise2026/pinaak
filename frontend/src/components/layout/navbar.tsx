@@ -406,22 +406,22 @@ const navBtnClass = (
   open = false,
   justify = "justify-start",
 ) =>
-  `inline-flex h-10 w-full items-center ${justify} gap-2 whitespace-nowrap rounded-lg px-3.5 text-sm font-medium transition-colors duration-150 md:w-auto md:justify-center ${
+  `group inline-flex h-10 w-full items-center ${justify} gap-2 whitespace-nowrap rounded-lg px-3.5 text-sm font-medium transition-all duration-200 md:w-auto md:justify-center ${
     active
-      ? "bg-orange-50 text-orange-700 ring-1 ring-inset ring-orange-200"
+      ? "bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 shadow-sm ring-1 ring-inset ring-orange-300"
       : open
-        ? "bg-slate-100 text-slate-900"
-        : "text-slate-600 hover:bg-slate-100 hover:text-slate-900"
+        ? "bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-200"
+        : "text-slate-600 ring-1 ring-inset ring-transparent hover:bg-slate-100 hover:text-slate-900 hover:ring-slate-200"
   }`;
 
 const panelClass =
-  "nav-pop z-50 mt-1 max-h-80 w-full overflow-y-auto whitespace-nowrap rounded-xl border border-slate-200 bg-white p-1.5 shadow-xl shadow-slate-900/10 md:absolute md:left-0 md:top-full md:mt-2 md:w-max md:min-w-[14rem]";
+  "nav-pop z-50 mt-1 max-h-80 w-full overflow-y-auto whitespace-nowrap rounded-xl border border-t-2 border-slate-200 border-t-orange-500 bg-white p-1.5 shadow-xl shadow-orange-900/10 md:absolute md:left-0 md:top-full md:mt-2 md:w-max md:min-w-[14rem]";
 
 const itemClass = (active: boolean) =>
-  `flex w-full items-center justify-between gap-6 rounded-lg px-3 py-2 text-left text-sm font-medium transition-colors ${
+  `nav-item flex w-full items-center justify-between gap-6 rounded-lg border-l-[3px] px-3 py-2 text-left text-sm font-medium transition-all duration-150 ${
     active
-      ? "bg-orange-50 text-orange-700"
-      : "text-slate-700 hover:bg-slate-50 hover:text-slate-900"
+      ? "border-orange-500 bg-gradient-to-r from-orange-50 to-transparent text-orange-700"
+      : "border-transparent text-slate-700 hover:border-orange-300 hover:bg-slate-50 hover:pl-4 hover:text-slate-900"
   }`;
 
 type DropdownProps = {
@@ -434,15 +434,7 @@ type DropdownProps = {
   children: ReactNode;
 };
 
-function Dropdown({
-  open,
-  onToggle,
-  active = false,
-  icon,
-  label,
-  panelTitle,
-  children,
-}: DropdownProps) {
+function Dropdown({ open, onToggle, active = false, icon, label, panelTitle, children }: DropdownProps) {
   return (
     <div className="relative w-full md:w-auto">
       <button
@@ -452,13 +444,25 @@ function Dropdown({
         onClick={onToggle}
         className={navBtnClass(active, open, "justify-between")}
       >
-        <span className="flex items-center gap-2">
-          {icon}
-          <span>{label}</span>
+        <span className="flex min-w-0 items-center gap-2">
+          {icon && (
+            <span className={`transition-transform duration-200 group-hover:scale-110 ${active ? "text-orange-500" : ""}`}>
+              {icon}
+            </span>
+          )}
+          <span key={label} className="nav-label max-w-[220px] truncate">
+            {label}
+          </span>
+          {active && (
+            <span className="relative flex h-2 w-2 shrink-0">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-500" />
+            </span>
+          )}
         </span>
         <ChevronDown
           size={14}
-          className={`shrink-0 transition-transform duration-200 ${
+          className={`shrink-0 transition-transform duration-300 ${
             active ? "text-orange-500" : "text-slate-400"
           } ${open ? "rotate-180" : ""}`}
         />
@@ -466,7 +470,7 @@ function Dropdown({
 
       {open && (
         <div role="menu" className={panelClass}>
-          <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-slate-400">
+          <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-orange-500">
             {panelTitle}
           </p>
           <ul className="space-y-0.5">{children}</ul>
@@ -480,26 +484,22 @@ function DropdownItem({
   active,
   onClick,
   children,
+  index = 0,
 }: {
   active: boolean;
   onClick: () => void;
   children: ReactNode;
+  index?: number;
 }) {
   return (
-    <li role="none">
-      <button
-        type="button"
-        role="menuitem"
-        onClick={onClick}
-        className={itemClass(active)}
-      >
+    <li role="none" className="nav-item-in" style={{ animationDelay: `${index * 30}ms` }}>
+      <button type="button" role="menuitem" onClick={onClick} className={itemClass(active)}>
         <span>{children}</span>
-        {active && <Check size={16} className="shrink-0 text-orange-600" />}
+        {active && <Check size={16} className="check-pop shrink-0 text-orange-600" />}
       </button>
     </li>
   );
 }
-
 function NavLink({
   active,
   onClick,
@@ -817,6 +817,10 @@ export function Navbar() {
     },
   ].filter((item) => item.show);
 
+  const activeTrackingItem = trackingItems.find(
+  ({ key }) => pathname === `/dashboard/reports/${REPORT_SLUGS[key]}`,
+);
+
   const isRulesActive = is("/dashboard/rules");
 
   return (
@@ -825,12 +829,28 @@ export function Navbar() {
       className="sticky top-0 z-50 w-full border-b border-slate-200/80 bg-white/85 backdrop-blur-md"
     >
       <style>{`
-        @keyframes nav-pop {
-          from { opacity: 0; transform: translateY(-4px); }
-          to { opacity: 1; transform: translateY(0); }
-        }
-        .nav-pop { animation: nav-pop 0.14s ease-out; }
-      `}</style>
+  @keyframes nav-pop {
+    from { opacity: 0; transform: translateY(-6px) scale(0.97); }
+    to   { opacity: 1; transform: translateY(0) scale(1); }
+  }
+  @keyframes nav-item-in {
+    from { opacity: 0; transform: translateX(-8px); }
+    to   { opacity: 1; transform: translateX(0); }
+  }
+  @keyframes nav-label {
+    from { opacity: 0; transform: translateY(4px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+  @keyframes check-pop {
+    0%   { transform: scale(0) rotate(-45deg); }
+    70%  { transform: scale(1.25) rotate(0); }
+    100% { transform: scale(1); }
+  }
+  .nav-pop { animation: nav-pop 0.18s cubic-bezier(0.16, 1, 0.3, 1); transform-origin: top left; }
+  .nav-item-in { opacity: 0; animation: nav-item-in 0.22s ease-out forwards; }
+  .nav-label { animation: nav-label 0.25s ease-out; }
+  .check-pop { animation: check-pop 0.3s ease-out; }
+`}</style>
 
       {/* Brand accent line */}
       <span className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-orange-500 via-amber-400 to-orange-500" />
@@ -1000,32 +1020,29 @@ export function Navbar() {
 
                 {/* Tracking */}
                 {trackingItems.length > 0 && (
-                  <Dropdown
-                    open={openMenu === "lead-track-menu"}
-                    onToggle={() => toggle("lead-track-menu")}
-                    active={is("/dashboard/reports")}
-                    icon={<MapPin size={16} />}
-                    label="Tracking"
-                    panelTitle="Reports"
-                  >
-                    {trackingItems.map(({ label, key }) => (
-                      <DropdownItem
-                        key={key}
-                        active={
-                          pathname === `/dashboard/reports/${REPORT_SLUGS[key]}`
-                        }
-                        onClick={() => {
-                          router.push(
-                            `/dashboard/reports/${REPORT_SLUGS[key]}`,
-                          );
-                          close();
-                        }}
-                      >
-                        {label}
-                      </DropdownItem>
-                    ))}
-                  </Dropdown>
-                )}
+  <Dropdown
+    open={openMenu === "lead-track-menu"}
+    onToggle={() => toggle("lead-track-menu")}
+    active={is("/dashboard/reports")}
+    icon={<MapPin size={16} />}
+    label={activeTrackingItem ? activeTrackingItem.label : "Tracking"}
+    panelTitle="Reports"
+  >
+    {trackingItems.map(({ label, key }, index) => (
+      <DropdownItem
+        key={key}
+        index={index}
+        active={pathname === `/dashboard/reports/${REPORT_SLUGS[key]}`}
+        onClick={() => {
+          router.push(`/dashboard/reports/${REPORT_SLUGS[key]}`);
+          close();
+        }}
+      >
+        {label}
+      </DropdownItem>
+    ))}
+  </Dropdown>
+)}
               </>
             )}
 

@@ -361,8 +361,7 @@ customerCity: lead.customerCity ?? "",
          RATE QUOTATION PAYLOAD
       ===================================================== */
 
-      const t = (v?: unknown) =>
-        Array.isArray(v) ? JSON.stringify(v) : typeof v === "string" ? v.trim() : "";
+      const t = (v?: string) => v?.trim() || "";
 
       const quotationPayload: CreateQuotationPayload = {
         customer_id: customerId,

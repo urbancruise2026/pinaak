@@ -6,7 +6,7 @@ import { fetchStatusWiseDateReport } from "@/features/reports/monthlyReportSlice
 import { AppDispatch } from "@/store/store";
 import { Loader2 } from "lucide-react";
 import Image from "next/image";
-import { Eye, X } from "lucide-react";
+import { Eye, X, BarChart3, CalendarDays, Users } from "lucide-react";
 import employeeDate from "@/assets/images/empforstatus.png";
 import { AllRegionZoneCityFilter } from "@/components/ui/AllRegionZoneCityFilter";
 
@@ -52,16 +52,23 @@ const STATUS_LABELS: Record<string, string> = {
   book: "BOOK",
 };
 
-const STATUS_STYLE: Record<string, string> = {
-  new: "text-blue-600 bg-blue-200",
-  kyc: "text-cyan-800 bg-cyan-200",
-  rfq: "text-amber-600 bg-amber-200",
-  hot: "text-pink-950 bg-pink-200",
-  vehn: "text-[#2c1332] bg-[#2c1332]/5",
-  lost: "text-red-600 bg-red-200",
-  book: "text-green-800 bg-green-200",
+// text = number colour, soft = (opaque) tint behind the status name, dot = marker colour.
+// Full class names so Tailwind never purges them.
+const STATUS_STYLE: Record<
+  string,
+  { text: string; soft: string; dot: string }
+> = {
+  new: { text: "text-blue-600", soft: "bg-blue-50", dot: "bg-blue-500" },
+  kyc: { text: "text-cyan-800", soft: "bg-cyan-50", dot: "bg-cyan-600" },
+  rfq: { text: "text-amber-600", soft: "bg-amber-50", dot: "bg-amber-500" },
+  hot: { text: "text-pink-700", soft: "bg-pink-50", dot: "bg-pink-500" },
+  vehn: { text: "text-purple-900", soft: "bg-purple-50", dot: "bg-purple-500" },
+  lost: { text: "text-red-600", soft: "bg-red-50", dot: "bg-red-500" },
+  book: { text: "text-green-800", soft: "bg-green-50", dot: "bg-green-600" },
 };
 
+// One colour family per employee block (row tint + name tile). The row tints are
+// opaque on purpose: the frozen EMP / Status columns must hide what scrolls under them.
 const rowColors = [
   "bg-indigo-50",
   "bg-cyan-50",
@@ -70,6 +77,19 @@ const rowColors = [
   "bg-purple-50",
   "bg-yellow-50",
 ];
+
+const empTileColors = [
+  "bg-indigo-100 text-indigo-800",
+  "bg-cyan-100 text-cyan-800",
+  "bg-rose-100 text-rose-800",
+  "bg-green-100 text-green-800",
+  "bg-purple-100 text-purple-800",
+  "bg-yellow-100 text-yellow-800",
+];
+
+// Frozen column geometry (EMP, then Status right after it)
+const EMP_W = 40;
+const STATUS_W = 82;
 
 const Empreport = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -135,17 +155,45 @@ const Empreport = () => {
 
   const daysArray = Array.from({ length: daysInMonth }, (_, i) => i + 1);
 
-  return (
-    <div className="">
-      {/* HEADER */}
-      <div className="sticky top-0 z-30 bg-orange-100 shadow-sm">
-        <div className="pl-4 border-l-8 border-orange-500 bg-orange-100 px-3">
-          <div className="flex justify-between items-center py-4">
-            <h2 className="text-4xl font-bold text-orange-600 p-2">
-              Employee Performance PS – {selectedMonth} {selectedYear}
-            </h2>
+  // Team Total row: all advisers added together, day by day
+  const teamDayTotals = daysArray.map((dayNo) =>
+    employees.reduce((sum, employee) => {
+      const days = Array.isArray(employee?.days) ? employee.days : [];
+      const dayData = days.find((d: any) => d.day === dayNo);
+      return sum + (Number(dayData?.total) || 0);
+    }, 0),
+  );
+  const teamGrandTotal = employees.reduce(
+    (sum, employee) => sum + (Number(employee?.totals?.total) || 0),
+    0,
+  );
 
-            <div className="flex items-center gap-3">
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-indigo-50/40">
+      {/* HEADER */}
+      <div className="z-30 bg-slate-50/95 px-3 pb-2 pt-3 backdrop-blur sm:px-4 md:sticky md:top-0">
+        <div className="flex flex-col gap-3 rounded-2xl border border-indigo-100 bg-white p-3 shadow-[0_6px_20px_rgba(79,70,229,0.08)] sm:p-4 xl:flex-row xl:items-center xl:justify-between">
+          {/* Title */}
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-500 to-violet-500 shadow-lg shadow-indigo-300/50 sm:h-14 sm:w-14">
+              <BarChart3
+                className="h-6 w-6 text-white sm:h-7 sm:w-7"
+                aria-hidden="true"
+              />
+            </div>
+            <div className="min-w-0">
+              <h2 className="text-xl font-extrabold leading-tight text-slate-900 sm:text-2xl">
+                Employee Performance PS – {selectedMonth} {selectedYear}
+              </h2>
+              <p className="mt-0.5 text-xs text-slate-500 sm:text-sm">
+                Day-wise status counts for each adviser
+              </p>
+            </div>
+          </div>
+
+          {/* Filters: Region / Zone / City / Year, then Month + chart button */}
+          <div className="flex min-w-0 flex-col gap-2 lg:flex-row lg:items-center">
+            <div className="min-w-0 lg:w-[460px] 2xl:w-[540px] [&>div>div]:!max-w-none md:[&>div>div]:!grid-cols-4 [&_select]:!h-11 [&_select]:!rounded-2xl [&_select]:!border-slate-200 [&_select]:!bg-white [&_select]:!text-slate-700 [&_select]:!shadow-sm [&_select]:hover:!border-indigo-300 [&_select]:focus:!border-indigo-400 [&_select]:focus:!ring-indigo-200">
               <AllRegionZoneCityFilter
                 selectedRegion={selectedRegion}
                 selectedZone={selectedZone}
@@ -155,23 +203,18 @@ const Empreport = () => {
                 onZoneChange={setSelectedZone}
                 onCityChange={setSelectedCity}
                 onYearChange={setSelectedYear}
-                layout="row"
+                layout="grid"
               />
-              <button
-                onClick={() => setShowImageModal(true)}
-                className="p-1 rounded-full hover:bg-orange-50 border-2 border-orange-400 shadow-sm transition-colors"
-                title="View Chart"
-              >
-                <Eye className="w-6 h-6 text-orange-600" />
-              </button>
+            </div>
 
-              <div className="flex items-center gap-2 bg-white px-3 py-2 rounded-lg border border-slate-200 shadow-sm">
-                <span className="text-slate-300 text-lg">|</span>
-
+            <div className="flex items-center gap-2">
+              {/* Month */}
+              <div className="relative min-w-0 flex-1 lg:w-32 lg:flex-none">
                 <select
                   value={selectedMonth}
                   onChange={(e) => setSelectedMonth(e.target.value)}
-                  className="px-3 py-1.5 border border-slate-300 rounded-lg text-sm font-medium text-slate-700 bg-white focus:outline-none focus:ring-2 focus:ring-orange-500 cursor-pointer"
+                  aria-label="Month"
+                  className="h-11 w-full cursor-pointer appearance-none rounded-2xl border border-slate-200 bg-white px-3 pr-9 text-sm font-semibold text-slate-700 shadow-sm transition-all hover:border-indigo-300 focus:border-indigo-400 focus:outline-none focus:ring-1 focus:ring-indigo-200"
                 >
                   {ALL_MONTHS.map((month) => (
                     <option key={month} value={month}>
@@ -179,177 +222,278 @@ const Empreport = () => {
                     </option>
                   ))}
                 </select>
+                <CalendarDays
+                  size={14}
+                  className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                />
               </div>
+
+              {/* Chart button */}
+              <button
+                onClick={() => setShowImageModal(true)}
+                className="shrink-0 rounded-full border-2 border-indigo-300 bg-white p-1.5 shadow-sm transition-colors hover:bg-indigo-50"
+                title="View Chart"
+                aria-label="View Chart"
+              >
+                <Eye className="h-5 w-5 text-indigo-600 sm:h-6 sm:w-6" />
+              </button>
             </div>
           </div>
         </div>
+      </div>
 
-        {showImageModal && (
+      {showImageModal && (
+        <div
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setShowImageModal(false)}
+        >
           <div
-            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
-            onClick={() => setShowImageModal(false)}
+            className="relative mx-4 w-full max-w-6xl rounded-2xl bg-white p-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
           >
-            <div
-              className="relative bg-white rounded-2xl shadow-2xl p-4 max-w-6xl w-full mx-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex justify-between items-center mb-3 px-1">
-                <h3 className="text-lg font-bold text-orange-700">
-                  Employee Reports PS Chart – {selectedMonth} {selectedYear}
-                </h3>
-                <button
-                  onClick={() => setShowImageModal(false)}
-                  className="w-10 h-10 flex items-center justify-center rounded-full bg-[#EE0000] hover:bg-red-700 transition-colors"
-                >
-                  <X className="w-6 h-6 text-white" strokeWidth={3} />
-                </button>
-              </div>
-              <Image
-                src={employeeDate}
-                alt="Employee Performance TS"
-                width={1920}
-                height={1080}
-                priority
-                className="w-full rounded-xl object-contain max-h-[70vh]"
-              />
+            <div className="mb-3 flex items-center justify-between px-1">
+              <h3 className="text-lg font-bold text-indigo-700">
+                Employee Reports PS Chart – {selectedMonth} {selectedYear}
+              </h3>
+              <button
+                onClick={() => setShowImageModal(false)}
+                aria-label="Close"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#EE0000] transition-colors hover:bg-red-700"
+              >
+                <X className="h-6 w-6 text-white" strokeWidth={3} />
+              </button>
+            </div>
+            <Image
+              src={employeeDate}
+              alt="Employee Performance TS"
+              width={1920}
+              height={1080}
+              priority
+              className="max-h-[70vh] w-full rounded-xl object-contain"
+            />
+          </div>
+        </div>
+      )}
+
+      <div className="px-3 pb-4 sm:px-4">
+        {loading ? (
+          <div className="flex justify-center py-20">
+            <Loader2 className="h-10 w-10 animate-spin text-indigo-600" />
+          </div>
+        ) : (
+          <div className="rounded-3xl border border-slate-100 bg-white p-2 shadow-[0_8px_30px_rgba(15,23,42,0.06)] sm:p-3">
+            <div className="overflow-x-auto rounded-2xl">
+              <table
+                className="w-full border-separate text-sm"
+                style={{ borderSpacing: 2 }}
+              >
+                <thead>
+                  <tr className="text-white">
+                    {/* ✅ EMP - sticky */}
+                    <th
+                      className="sticky left-0 z-20 rounded-lg bg-slate-800 p-2 text-xs font-extrabold"
+                      style={{ width: EMP_W, minWidth: EMP_W }}
+                    >
+                      EMP
+                    </th>
+                    {/* ✅ Status - sticky after EMP */}
+                    <th
+                      className="sticky z-20 rounded-lg bg-slate-800 p-1 text-sm font-extrabold"
+                      style={{
+                        left: EMP_W,
+                        width: STATUS_W,
+                        minWidth: STATUS_W,
+                      }}
+                    >
+                      Status
+                    </th>
+                    {daysArray.map((day) => (
+                      <th
+                        key={day}
+                        className="min-w-[40px] rounded-lg bg-slate-800 p-2 text-sm font-bold"
+                      >
+                        {day}
+                      </th>
+                    ))}
+                    <th className="min-w-[64px] rounded-lg bg-slate-900 p-2 text-sm font-extrabold">
+                      TOTAL
+                    </th>
+                  </tr>
+                </thead>
+
+                <tbody>
+                  {employees.length > 0 ? (
+                    employees.map((employee, empIndex) => {
+                      const bgColor = rowColors[empIndex % rowColors.length];
+                      const tileColor =
+                        empTileColors[empIndex % empTileColors.length];
+                      const days = Array.isArray(employee?.days)
+                        ? employee.days
+                        : [];
+                      const totals = employee?.totals || {};
+
+                      return (
+                        <React.Fragment key={employee?.adviser_id}>
+                          {STATUSES.map((status, statusIdx) => (
+                            <tr
+                              key={`${employee?.adviser_id}-${status}`}
+                              className={bgColor}
+                            >
+                              {statusIdx === 0 && (
+                                <td
+                                  rowSpan={STATUSES.length + 1}
+                                  className={`sticky left-0 z-10 rounded-xl p-0 text-center align-middle font-bold ${tileColor}`}
+                                  style={{
+                                    width: EMP_W,
+                                    minWidth: EMP_W,
+                                    maxWidth: EMP_W,
+                                  }}
+                                >
+                                  <div
+                                    className="mx-auto flex items-center justify-center text-sm font-extrabold"
+                                    style={{
+                                      writingMode: "vertical-rl",
+                                      transform: "rotate(180deg)",
+                                      whiteSpace: "nowrap",
+                                      lineHeight: "16px",
+                                      padding: "6px 0",
+                                      letterSpacing: "6px",
+                                    }}
+                                  >
+                                    {employee?.adviser_name
+                                      ?.toUpperCase()
+                                      .replace(/\s+/g, " ")
+                                      .trim()}
+                                  </div>
+                                </td>
+                              )}
+
+                              {/* ✅ Status cell - sticky */}
+                              <td
+                                className={`sticky z-10 rounded-md px-2 py-0.5 text-left text-[13px] font-semibold ${STATUS_STYLE[status].soft} ${STATUS_STYLE[status].text}`}
+                                style={{
+                                  left: EMP_W,
+                                  width: STATUS_W,
+                                  minWidth: STATUS_W,
+                                }}
+                              >
+                                <span className="inline-flex items-center gap-1.5">
+                                  <i
+                                    aria-hidden="true"
+                                    className={`inline-block h-2 w-2 rounded-full ${STATUS_STYLE[status].dot}`}
+                                  />
+                                  {STATUS_LABELS[status]}
+                                </span>
+                              </td>
+
+                              {daysArray.map((dayNo) => {
+                                const dayData =
+                                  days.find((d: any) => d.day === dayNo) || {};
+                                const value = dayData?.[status] || 0;
+                                return (
+                                  <td
+                                    key={dayNo}
+                                    className={`text-center text-[13px] font-semibold ${
+                                      value > 0
+                                        ? STATUS_STYLE[status].text
+                                        : "text-slate-300"
+                                    }`}
+                                  >
+                                    {value > 0 ? dayData[status] : "-"}
+                                  </td>
+                                );
+                              })}
+
+                              <td className="rounded-md bg-amber-100 text-center text-[13px] font-bold text-slate-800">
+                                {totals[status] || 0}
+                              </td>
+                            </tr>
+                          ))}
+
+                          {/* TOTAL ROW */}
+                          <tr className="bg-amber-100 text-base font-extrabold text-slate-800">
+                            {/* ✅ TOTAL label - sticky */}
+                            <td
+                              className="sticky z-10 rounded-md bg-amber-200 px-2 py-1.5 text-center text-sm"
+                              style={{
+                                left: EMP_W,
+                                width: STATUS_W,
+                                minWidth: STATUS_W,
+                              }}
+                            >
+                              TOTAL
+                            </td>
+                            {daysArray.map((dayNo) => {
+                              const dayData =
+                                days.find((d: any) => d.day === dayNo) || {};
+                              const value = dayData?.total || 0;
+                              return (
+                                <td
+                                  key={dayNo}
+                                  className={`rounded-md text-center text-sm font-bold ${
+                                    value > 0 ? "" : "text-slate-400"
+                                  }`}
+                                >
+                                  {value > 0 ? dayData.total : "-"}
+                                </td>
+                              );
+                            })}
+                            <td className="rounded-md bg-amber-300 text-center text-sm font-extrabold">
+                              {totals.total || 0}
+                            </td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })
+                  ) : (
+                    <tr>
+                      <td
+                        colSpan={daysArray.length + 3}
+                        className="py-10 text-center text-gray-500"
+                      >
+                        No Data Found
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+
+                {/* Team Total – every adviser added together */}
+                {employees.length > 0 && (
+                  <tfoot>
+                    <tr className="text-white">
+                      <td
+                        colSpan={2}
+                        className="sticky left-0 z-10 rounded-lg bg-slate-900 px-3 py-2.5 text-left text-sm font-extrabold"
+                      >
+                        <span className="inline-flex items-center gap-2 whitespace-nowrap">
+                          <Users className="h-4 w-4" aria-hidden="true" />
+                          Team Total
+                        </span>
+                      </td>
+                      {teamDayTotals.map((value, i) => (
+                        <td key={i} className="p-0.5 text-center">
+                          <span
+                            className={`inline-flex h-8 min-w-[34px] items-center justify-center rounded-lg px-1 text-[13px] font-bold ${
+                              value > 0
+                                ? "bg-indigo-200 text-indigo-900"
+                                : "bg-slate-700 text-slate-400"
+                            }`}
+                          >
+                            {value > 0 ? value : "-"}
+                          </span>
+                        </td>
+                      ))}
+                      <td className="rounded-lg bg-slate-900 text-center text-base font-extrabold">
+                        {teamGrandTotal}
+                      </td>
+                    </tr>
+                  </tfoot>
+                )}
+              </table>
             </div>
           </div>
         )}
       </div>
-
-      {loading ? (
-        <div className="flex justify-center py-20">
-          <Loader2 className="animate-spin w-10 h-10" />
-        </div>
-      ) : (
-        <div className="bg-white rounded-xl mt-2 shadow overflow-x-auto">
-          <table className="w-full border border-gray-300 text-sm">
-            <thead>
-              <tr className="bg-green-950 text-white">
-                {/* ✅ EMP - sticky */}
-                <th className="sticky left-0 z-20 bg-green-950 border p-2 w-[35px] min-w-[35px]">
-                  EMP
-                </th>
-                {/* ✅ Status - sticky after EMP */}
-                <th className="sticky left-[35px] z-20 bg-green-950 border p-1 min-w-[70px]">
-                  Status
-                </th>
-                {daysArray.map((day) => (
-                  <th key={day} className="border p-2 min-w-[40px]">
-                    {day}
-                  </th>
-                ))}
-                <th className="border p-2 bg-green-950 min-w-[60px]">TOTAL</th>
-              </tr>
-            </thead>
-
-            <tbody>
-              {employees.length > 0 ? (
-                employees.map((employee, empIndex) => {
-                  const bgColor = rowColors[empIndex % rowColors.length];
-                  const days = Array.isArray(employee?.days)
-                    ? employee.days
-                    : [];
-                  const totals = employee?.totals || {};
-
-                  return (
-                    <React.Fragment key={employee?.adviser_id}>
-                      {STATUSES.map((status, statusIdx) => (
-                        <tr
-                          key={`${employee?.adviser_id}-${status}`}
-                          className={bgColor}
-                        >
-                          {statusIdx === 0 && (
-                            <td
-                              rowSpan={STATUSES.length + 1}
-                              className={`sticky left-0 z-10 border font-bold ${bgColor} w-[35px] min-w-[35px] max-w-[35px] p-0 text-center align-middle`}
-                            >
-                              <div
-                                className="flex items-center justify-center mx-auto font-extrabold text-base"
-                                style={{
-                                  writingMode: "vertical-rl",
-                                  transform: "rotate(180deg)",
-                                  whiteSpace: "nowrap",
-                                  lineHeight: "16px",
-                                  padding: "6px 0",
-                                  letterSpacing: "10px",
-                                }}
-                              >
-                                {employee?.adviser_name
-                                  ?.toUpperCase()
-                                  .replace(/\s+/g, " ")
-                                  .trim()}
-                              </div>
-                            </td>
-                          )}
-
-                          {/* ✅ Status cell - sticky */}
-                          <td
-                            className={`sticky left-[35px] z-10 border p-0.5 font-semibold ${STATUS_STYLE[status]}`}
-                          >
-                            {STATUS_LABELS[status]}
-                          </td>
-
-                          {daysArray.map((dayNo) => {
-                            const dayData =
-                              days.find((d: any) => d.day === dayNo) || {};
-                            return (
-                              <td
-                                key={dayNo}
-                                className={`border text-center font-semibold ${STATUS_STYLE[status].split(" ")[0]}`}
-                              >
-                                {(dayData?.[status] || 0) > 0
-                                  ? dayData[status]
-                                  : "-"}
-                              </td>
-                            );
-                          })}
-
-                          <td className="border text-center bg-amber-200 font-bold">
-                            {totals[status] || 0}
-                          </td>
-                        </tr>
-                      ))}
-
-                      {/* TOTAL ROW */}
-                      <tr className="bg-amber-500 text-lg font-extrabold">
-                        {/* ✅ TOTAL label - sticky */}
-                        <td className="sticky left-[35px] z-10 border text-center px-3 py-2 bg-amber-500">
-                          TOTAL
-                        </td>
-                        {daysArray.map((dayNo) => {
-                          const dayData =
-                            days.find((d: any) => d.day === dayNo) || {};
-                          return (
-                            <td
-                              key={dayNo}
-                              className="border text-center text-base font-semibold"
-                            >
-                              {(dayData?.total || 0) > 0 ? dayData.total : "-"}
-                            </td>
-                          );
-                        })}
-                        <td className="border bg-amber-300 text-center font-bold">
-                          {totals.total || 0}
-                        </td>
-                      </tr>
-                    </React.Fragment>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td
-                    colSpan={daysArray.length + 3}
-                    className="text-center py-10 text-gray-500"
-                  >
-                    No Data Found
-                  </td>
-                </tr>
-              )}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 };
