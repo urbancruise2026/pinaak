@@ -859,14 +859,6 @@ export const getWebsiteToLeadAgingReport = async (year) => {
     const startDate = `${year}-01-01 00:00:00`;
     const endDate = `${Number(year) + 1}-01-01 00:00:00`;
 
-    console.log("========================================");
-    console.log("🌐 WEBSITE TO LEAD AGING REPORT");
-    console.log("📅 Year:", year);
-    console.log("📅 Start Date:", startDate);
-    console.log("📅 End Date:", endDate);
-    console.log("🏙️ City Filter: DISABLED");
-    console.log("📊 Showing TOTAL DATABASE DATA");
-    console.log("========================================");
 
     /*
      * ============================================================
@@ -885,7 +877,6 @@ export const getWebsiteToLeadAgingReport = async (year) => {
       [startDate, endDate],
     );
 
-    console.log("🌐 Website records:", websiteCount);
 
     /*
      * ============================================================
@@ -953,7 +944,7 @@ export const getWebsiteToLeadAgingReport = async (year) => {
       [startDate, endDate],
     );
 
-    console.log("📞 Website → Customer phone matches:", phoneMatchCount);
+
 
     /*
      * ============================================================
@@ -1025,7 +1016,6 @@ export const getWebsiteToLeadAgingReport = async (year) => {
       [startDate, endDate],
     );
 
-    console.log("👤 Website → Customer → Lead matches:", customerLeadCount);
 
     /*
      * ============================================================
@@ -1098,12 +1088,6 @@ export const getWebsiteToLeadAgingReport = async (year) => {
       `,
       [startDate, endDate],
     );
-
-    console.log("⏱️ Lead created AFTER website enquiry:", afterWebsiteCount);
-
-    console.log("========================================");
-    console.log("🚀 Executing MAIN Website To Lead query...");
-    console.log("========================================");
 
     /*
      * ============================================================
@@ -1254,11 +1238,9 @@ export const getWebsiteToLeadAgingReport = async (year) => {
 
     const finalValues = [startDate, endDate, startDate, endDate];
 
-    console.log("📊 Query Values:", finalValues);
 
     const [rows] = await pool.execute(query, finalValues);
 
-    console.log("📊 Website To Lead Aging Rows:", rows.length);
 
     /*
      * ============================================================
@@ -1287,13 +1269,6 @@ export const getWebsiteToLeadAgingReport = async (year) => {
       };
     });
 
-    console.log("📊 Final Report Data Count:", result.length);
-
-    console.log("📊 Final Report Data:", result);
-
-    console.log("========================================");
-    console.log("✅ WEBSITE TO LEAD AGING REPORT DONE");
-    console.log("========================================");
 
     return result;
   } catch (error) {

@@ -476,7 +476,6 @@ export default function DsrForm({
           : "[]",
     };
 
-    console.log("📤 Sending payload to backend:", payload);
 
     try {
       if (formData.id) {

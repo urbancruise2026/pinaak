@@ -209,7 +209,6 @@ export const findZoneCityRegion = async (req) => {
       ? parseInt(req.query.regionId, 10)
       : null;
 
-    console.log(" paramRegionId---------------- ", paramRegionId);
 
     const paramZoneId = req.query.zoneId
       ? parseInt(req.query.zoneId, 10)
@@ -226,7 +225,7 @@ export const findZoneCityRegion = async (req) => {
     let regionIds = [];
     let zoneIds = [];
     let cityIds = [];
-    console.log("paramRegionId ", paramRegionId);
+
     // 1) Region select kiya -> uske zones nikalo
     if (paramRegionId) {
       regionIds = [paramRegionId];
@@ -242,7 +241,6 @@ export const findZoneCityRegion = async (req) => {
     if (zoneIds.length > 0) {
       cityIds = await findCitiesByZoneId(zoneIds);
     }
-    console.log(" cityIds ", cityIds);
     // 4) City directly select kiya
     if (paramCityId) {
       cityIds = [paramCityId];

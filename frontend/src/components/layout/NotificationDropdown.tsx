@@ -18,7 +18,6 @@ export default function NotificationDropdown({ isOpen, onToggle }: Props) {
   const { todayFollowups, todayFollowupsLoading, todayFollowupsError } =
     useAppSelector((state) => state.followUp);
 
-  console.log(todayFollowups);
 
   useEffect(() => {
     dispatch(getTodayFollowups());

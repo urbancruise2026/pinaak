@@ -97,9 +97,6 @@ const getVehiclesById = asyncHandler(async (req, res) => {
 const getVehicleVariantByCodeController = asyncHandler(async (req, res) => {
   const { code } = req.params;
 
-  console.log("=================================");
-  console.log("Variant API called");
-  console.log("Code received:", code);
 
   if (!code) {
     throw new ApiError(400, "Vehicle code is required");
@@ -107,14 +104,13 @@ const getVehicleVariantByCodeController = asyncHandler(async (req, res) => {
 
   const vehicle = await getVehicleVariantByCodeModel(code);
 
-  console.log("Vehicle from DB:", vehicle);
+
 
   if (!vehicle) {
-    console.log("❌ Vehicle not found for code:", code);
+
     throw new ApiError(404, "Vehicle not found");
   }
 
-  console.log("✅ Variants found:", vehicle.variant);
 
   return res
     .status(200)

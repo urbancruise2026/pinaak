@@ -41,7 +41,6 @@ export default function DsrTable({
   const { dsrList, listLoading, listError, totalCount } = useSelector(
     (state: RootState) => state.dsr,
   );
-  console.log("dsr listtss", dsrList);
   const safeDsrList: DsrRecord[] = Array.isArray(dsrList) ? dsrList : [];
 
   const [pageSize, setPageSize] = useState(50);

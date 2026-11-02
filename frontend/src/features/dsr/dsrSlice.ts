@@ -142,7 +142,6 @@ const dsrSlice = createSlice({
 
         const payload = action.payload;
 
-        console.log("DSR GET ALL RESPONSE:", payload);
 
         state.dsrList = payload?.dsrList || [];
         state.totalCount = payload?.total || 0;

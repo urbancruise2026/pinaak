@@ -264,7 +264,6 @@ const LeadFollowupsTable = () => {
         getFollowupsByLeadId(Number(lead.id)),
       ).unwrap();
 
-      console.log("FOLLOWUP API RESULT:", result);
 
       if (Array.isArray(result)) {
         setFollowups(result);
