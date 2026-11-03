@@ -121,8 +121,6 @@ export const insertLead = async (data) => {
     
     // INTEGER SAFE
     const int = (v) => Number(v) || 0;
-    safe(ba_rated),
-    safe(vehicle_option)
     
     const liveorexpiry =
       pickupDateTime && new Date(pickupDateTime) <= new Date()
@@ -171,6 +169,8 @@ export const insertLead = async (data) => {
       int(vehicle1Quantity),
       int(vehicle2Quantity),
       int(vehicle3Quantity),
+    safe(ba_rated),
+    safe(vehicle_option),
       liveorexpiry,
     ];
 
