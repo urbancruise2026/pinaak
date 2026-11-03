@@ -240,7 +240,7 @@ export default function LongWeekendReport() {
 
             <p className="mt-1 text-xs text-slate-500">
               Financial-year monthly breakdown and daily totals
-            </p>
+            </p>..
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
@@ -255,6 +255,20 @@ export default function LongWeekendReport() {
             </span>
           </div>
         </div>
+        <div className="mb-3 flex flex-wrap items-center gap-4 text-sm font-medium text-slate-600">
+  <span className="inline-flex items-center gap-2">
+    <i className="h-4 w-4 rounded bg-amber-300 ring-2 ring-inset ring-amber-500" />
+    Sunday
+  </span>
+  <span className="inline-flex items-center gap-2">
+    <i className="h-4 w-4 rounded bg-red-200" />
+    20%+ above AVG
+  </span>
+  <span className="inline-flex items-center gap-2">
+    <i className="h-4 w-4 rounded bg-red-800" />
+    50%+ above AVG
+  </span>
+</div>
 
         {/* Horizontal scrolling keeps all 31 day columns accessible. */}
 
@@ -327,50 +341,56 @@ export default function LongWeekendReport() {
                     {/* Daily values: preserve Sunday and high-value styling. */}
 
                     {DAYS.map((day) => {
-                      const cell = monthData[day];
-                      const value = cell?.total ?? 0;
+  const cell = monthData[day];
+  const value = cell?.total ?? 0;
+  const avg = monthStat.avg;
 
-                      const sunday = isSunday(Number(year), month, day);
-                      const highValue = value >= 35;
+  const sunday = isSunday(Number(year), month, day);
+  const validDay = day <= new Date(Number(year), month, 0).getDate();
 
-                      const validDay =
-                        day <= new Date(Number(year), month, 0).getDate();
+  // Lead vs. month average
+  const darkRed = avg > 0 && value >= avg * 1.5; // 50%+ above AVG
+  const red = avg > 0 && value >= avg * 1.2;     // 20%+ above AVG
 
-                      const cellBackground = sunday
-                        ? "!bg-slate-200"
-                        : value >= 35
-                          ? "bg-rose-100"
-                          : value > 0
-                            ? "bg-sky-50"
-                            : "bg-white";
+  let cellBackground = "bg-white";
+  let textClass = "font-semibold text-[#244474]";
 
-                      const textClass = highValue
-                        ? "font-black text-rose-700"
-                        : sunday
-                          ? "font-extrabold text-slate-900"
-                          : "font-semibold text-[#244474]";
+  if (darkRed) {
+    cellBackground = "bg-red-800";
+    textClass = "font-black text-white";
+  } else if (red) {
+    cellBackground = "bg-red-200";
+    textClass = "font-black text-red-800";
+  } else if (sunday) {
+    cellBackground = value > 0 ? "bg-amber-300" : "bg-amber-100";
+    textClass =
+      value > 0 ? "font-black text-amber-950" : "font-bold text-amber-500";
+  } else if (value > 0) {
+    cellBackground = "bg-sky-50";
+  }
 
-                      return (
-                        <td
-                          key={day}
-                          className={`rounded-lg px-1 py-2 text-[11px] transition-colors ${cellBackground}`}
-                        >
-                          {validDay ? (
-                            value > 0 ? (
-                              <span className={textClass}>
-                                {formatNumber(value)}
-                              </span>
-                            ) : sunday ? (
-                              <span className={textClass}>0</span>
-                            ) : (
-                              <span className="text-slate-400">-</span>
-                            )
-                          ) : (
-                            <span className="text-slate-300">-</span>
-                          )}
-                        </td>
-                      );
-                    })}
+  const sundayRing = sunday ? "ring-2 ring-inset ring-amber-500" : "";
+
+  return (
+    <td
+      key={day}
+      title={validDay && value > 0 ? `${label} ${day}: ${value}` : undefined}
+      className={`rounded-lg px-1 py-2.5 text-[14px] transition-colors ${cellBackground} ${sundayRing}`}
+    >
+      {validDay ? (
+        value > 0 ? (
+          <span className={textClass}>{formatNumber(value)}</span>
+        ) : sunday ? (
+          <span className={textClass}>0</span>
+        ) : (
+          <span className="text-slate-400">-</span>
+        )
+      ) : (
+        <span className="text-slate-300">-</span>
+      )}
+    </td>
+  );
+})}
 
                     {/* Monthly total */}
 

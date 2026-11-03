@@ -23,6 +23,8 @@ export interface RuleEntry {
   shiftTiming: string;
   lead: number | string;
   overflow: string;
+  overflowLead: number | string | null;
+  maxLimit: number | string | null;
 }
 
 /** Body for POST /rule and PUT /rule/:id */
@@ -34,4 +36,7 @@ export interface FormState {
   monthLeads: MonthLead[];
   advisorId: number | null;
   shiftTiming: string;
+  overflow: string;
+  overflowLead: number | string;
+  maxLimit: number | string;
 }

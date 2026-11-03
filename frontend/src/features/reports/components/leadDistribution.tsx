@@ -68,7 +68,7 @@ const formatNumber = (value: number) =>
   }).format(value);
 
 const tableCell =
-  "border-b border-r border-white/80 px-1 py-2 text-center text-[11px] sm:text-xs whitespace-nowrap";
+  "border-b border-r border-white/80 px-1 py-2 text-center text-[14px] sm:text-sm whitespace-nowrap";
 
 export default function DailyLeadReport() {
   const currentMonth = new Date().getMonth() + 1;
@@ -266,18 +266,18 @@ export default function DailyLeadReport() {
             <table className="w-full min-w-max border-separate border-spacing-[3px] bg-[#f4f8fe] text-center">
               <thead>
                 <tr>
-                  <th className="sticky left-0 z-30 min-w-[105px] w-[105px] rounded-xl bg-gradient-to-r from-[#16365f] to-[#254c80] px-2 py-2 text-left text-[11px] font-bold text-white">
+                  <th className="sticky left-0 z-30 min-w-[95px] w-[95px] rounded-xl bg-gradient-to-r from-[#16365f] to-[#254c80] px-2 py-2 text-[11px] font-bold text-white">
                     NAME
                   </th>
 
-                  <th className="sticky left-[105px] z-30 min-w-[65px] w-[65px] rounded-xl bg-gradient-to-r from-[#16365f] to-[#254c80] px-1 py-2 text-left text-[11px] font-bold text-white">
+                  <th className="sticky left-[105px] z-30 min-w-[65px] w-[65px] rounded-xl bg-gradient-to-r from-[#16365f] to-[#254c80] px-1 py-2  text-[11px] font-bold text-white">
                     STATUS
                   </th>
 
                   {daysArray.map((day) => (
                     <th
                       key={day}
-                      className="min-w-[36px] rounded-lg bg-[#e0ebfb] px-1 py-3 text-[11px] font-bold text-[#244474]"
+                      className="min-w-[36px] rounded-lg bg-[#e0ebfb] px-1 py-3 text-[14px] font-bold text-[#244474]"
                     >
                       {day + 1}
                     </th>

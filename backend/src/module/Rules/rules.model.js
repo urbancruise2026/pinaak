@@ -31,6 +31,11 @@ export const findAdvisorsShiftTimingByZoneIds = async (zoneIds) => {
          AND u.role_id = 34`,
       accessControlIds,
     );
+    const toIntOrNull = (v) => {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
 
     const zoneAdvisorIds = empRows.map((r) => r.employee_id);
 
@@ -74,26 +79,20 @@ export const createRuleEntry = async ({
 
   try {
     const [result] = await connection.query(
-      `INSERT INTO rule_entries
-      (
-        type,
-        months,
-        month_leads,
-        advisor_id,
-        shift_timing,
-        \`lead\`,
-        overflow
-      )
-      VALUES (?, ?, ?, ?, ?, ?, ?)`,
-      [
-        type,
-        JSON.stringify(months),
-        JSON.stringify(monthLeads),
-        advisorId,
-        shiftTiming,
-        lead,
-        overflow,
-      ],
+`INSERT INTO rule_entries
+  (type, months, month_leads, advisor_id, shift_timing, \`lead\`, overflow, overflow_lead, max_limit)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+[
+  type,
+  JSON.stringify(months),
+  JSON.stringify(monthLeads),
+  advisorId,
+  shiftTiming,
+  lead,
+  overflow,
+  toIntOrNull(overflowLead),
+  toIntOrNull(maxLimit),
+],
     );
 
     return { id: result.insertId };
@@ -123,8 +122,10 @@ export const getRuleEntries = async ({ advisorIds } = {}) => {
        month_leads,
        advisor_id AS advisorId,
        shift_timing AS shiftTiming,
-       \`lead\`,
-       overflow
+              \`lead\`,
+       overflow,
+       overflow_lead AS overflowLead,
+       max_limit AS maxLimit
      FROM rule_entries
      ${whereSQL}
      ORDER BY id DESC`,
@@ -167,25 +168,21 @@ export const updateRuleEntry = async (
 ) => {
   const [result] = await pool.query(
     `UPDATE rule_entries
-     SET
-        type = ?,
-        months = ?,
-        month_leads = ?,
-        advisor_id = ?,
-        shift_timing = ?,
-        \`lead\` = ?,
-        overflow = ?
-     WHERE id = ?`,
-    [
-      type,
-      JSON.stringify(months),
-      JSON.stringify(monthLeads),
-      advisorId,
-      shiftTiming,
-      lead,
-      overflow,
-      id,
-    ],
+ SET type = ?, months = ?, month_leads = ?, advisor_id = ?, shift_timing = ?,
+     \`lead\` = ?, overflow = ?, overflow_lead = ?, max_limit = ?
+ WHERE id = ?`,
+[
+  type,
+  JSON.stringify(months),
+  JSON.stringify(monthLeads),
+  advisorId,
+  shiftTiming,
+  lead,
+  overflow,
+  toIntOrNull(overflowLead),
+  toIntOrNull(maxLimit),
+  id,
+],
   );
 
   if (result.affectedRows === 0) {

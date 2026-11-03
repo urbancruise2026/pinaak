@@ -63,7 +63,7 @@ export const MAKE_OPTIONS: string[] = [
   "SML Mahindra",
   "Suzuki",
   "Tata",
-  "Toyato",
+  "Toyota",
   "Volvo",
 ];
 
