@@ -64,6 +64,8 @@ export const leadSchema = z.object({
   vehicle2Quantity: z.number().optional().default(0),
   vehicle3Quantity: z.number().optional().default(0),
   requirementVehicle: z.string().optional(),
+  vehicle_option: z.string().optional(),
+  ba_rated: z.string().optional(),
   km: z.string().min(1, "KM is required"),
   smallbaggage: z.number().optional(),
   mediumbaggage: z.number().optional(),

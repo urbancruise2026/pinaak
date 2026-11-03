@@ -118,11 +118,9 @@ const dayCellClass = (value: number, sunday: boolean): string => {
   const high = value >= HIGH_VALUE;
 
   if (sunday) {
-    return high
-      ? "bg-slate-200 text-rose-700 font-black"
-      : value > 0
-        ? "bg-slate-200 text-slate-900 font-black"
-        : "bg-slate-200 text-slate-400";
+    if (high) return "bg-amber-300 text-rose-700 font-black ring-1 ring-amber-500";
+    if (value > 0) return "bg-amber-300 text-amber-950 font-black ring-1 ring-amber-500";
+    return "bg-amber-100 text-amber-500 font-bold ring-1 ring-amber-300";
   }
   if (value <= 0) return "bg-slate-50 text-slate-300";
   if (high) return "bg-rose-100 text-rose-700 font-black";
@@ -356,7 +354,7 @@ export default function MonthlyEnquiryReport() {
       <div className="rounded-3xl border border-slate-100 bg-white p-2 shadow-[0_8px_30px_rgba(15,23,42,0.06)] sm:p-3">
         <div className="overflow-x-auto rounded-2xl">
           <table
-            className="w-full min-w-[1150px] border-separate text-center"
+            className="w-full min-w-[1250px] border-separate text-center"
             style={{ borderSpacing: 3 }}
           >
             <thead>
@@ -370,7 +368,7 @@ export default function MonthlyEnquiryReport() {
                 {[...Array(31)].map((_, i) => (
                   <th
                     key={i}
-                    className="rounded-md bg-slate-900 px-0 py-2.5 text-xs font-bold"
+                    className="rounded-md bg-slate-900 px-0 py-2.5 text-sm font-bold"
                   >
                     {i + 1}
                   </th>

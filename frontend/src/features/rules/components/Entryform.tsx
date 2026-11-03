@@ -43,6 +43,9 @@ export const emptyForm: FormState = {
   ],
   advisorId: null,
   shiftTiming: "",
+  overflow: "",
+  overflowLead: "",
+  maxLimit: "",
 };
 
 // Maps a backend Entry (months[] + monthLeads[]) into the 3-row monthLeads shape
@@ -63,6 +66,9 @@ function entryToForm(entry: Entry): FormState {
     monthLeads: rows,
     advisorId: entry.advisorId,
     shiftTiming: entry.shiftTiming,
+    overflow: entry.overflow ?? "",
+    overflowLead: entry.overflowLead ?? "",
+    maxLimit: entry.maxLimit ?? "",
   };
 }
 
@@ -76,8 +82,16 @@ function formToPayload(form: FormState): EntryPayload {
     advisorId: form.advisorId as number,
     shiftTiming: form.shiftTiming,
     lead: filledRows[0]?.lead ?? 0,
-    overflow: "",
+    overflow: form.overflow,
+    overflowLead: form.overflow ? form.overflowLead : "",
+    maxLimit: form.maxLimit,
   };
+}
+function getAllowedMonths(selected: string[], count = 3) {
+  const now = new Date().getMonth();
+  const list = Array.from({ length: count }, (_, i) => MONTHS[(now + i) % 12]);
+  const legacy = selected.filter((m) => m && !list.includes(m));
+  return [...legacy, ...list];
 }
 
 export default function EntryForm({
@@ -101,7 +115,10 @@ export default function EntryForm({
 
   const dispatch = useAppDispatch();
   const { zoneAdvisors } = useSelector((state: RootState) => state.rule);
-
+  const monthOptions = getAllowedMonths([
+  ...form.monthLeads.map((ml) => ml.month),
+  form.overflow,
+]);
   useEffect(() => {
     dispatch(fetchAdvisorsByZone());
   }, [dispatch]);
@@ -243,7 +260,7 @@ export default function EntryForm({
                 className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-green-500"
               >
                 <option value="">Select Month</option>
-                {MONTHS.map((m) => (
+                {monthOptions.map((m) => (
                   <option key={m} value={m}>
                     {m}
                   </option>
@@ -265,6 +282,59 @@ export default function EntryForm({
             </div>
           </div>
         ))}
+        {/* Overflow */}
+<div className="grid grid-cols-2 gap-3">
+  <div>
+    <label className="text-md text-gray-700 font-semibold mb-2 block">
+      Overflow
+    </label>
+    <select
+      value={form.overflow}
+      onChange={(e) => setForm((p) => ({ ...p, overflow: e.target.value }))}
+      className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-green-500"
+    >
+      <option value="">Select Month</option>
+      {monthOptions.map((m) => (
+        <option key={m} value={m}>
+          {m}
+        </option>
+      ))}
+    </select>
+  </div>
+
+  <div>
+    <label className="text-md text-gray-700 font-semibold mb-2 block">
+      Lead/Day
+    </label>
+    <input
+      type="text"
+      inputMode="numeric"
+      value={form.overflowLead}
+      onChange={(e) =>
+        setForm((p) => ({ ...p, overflowLead: e.target.value.replace(/\D/g, "") }))
+      }
+      className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-green-500"
+      placeholder="Enter lead / day"
+    />
+  </div>
+</div>
+
+{/* Max limit */}
+<div>
+  <label className="text-md text-gray-700 font-semibold mb-2 block">
+    Max Limit
+  </label>
+  <input
+    type="text"
+    inputMode="numeric"
+    value={form.maxLimit}
+    onChange={(e) =>
+      setForm((p) => ({ ...p, maxLimit: e.target.value.replace(/\D/g, "") }))
+    }
+    className="w-full bg-white border border-gray-300 rounded-lg px-3 py-2.5 text-sm text-gray-900 outline-none focus:border-green-500"
+    placeholder="Enter max limit"
+  />
+</div>
 
         <div className="flex-1" />
 

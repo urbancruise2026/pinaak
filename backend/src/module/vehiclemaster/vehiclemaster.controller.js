@@ -34,7 +34,7 @@ export const createVehicle = asyncHandler(async (req, res) => {
     throw new ApiError(400, "Seat, category, make and config are required");
   }
 
-  const code = generateVehicleCode(seat, category, config);
+  const code = generateVehicleCode(seat, category, config, make);
 
   payload.code = code;
 

@@ -210,7 +210,7 @@ export const getAllVehiclesModel = async ({
     }
 
     // ===== PAGINATION =====
-    query += ` ORDER BY id ASC LIMIT ? OFFSET ?`;
+    query += ` ORDER BY id DESC LIMIT ? OFFSET ?`;
 
     params.push(Number(limit), Number(offset));
 

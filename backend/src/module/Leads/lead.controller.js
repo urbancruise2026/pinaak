@@ -19,6 +19,7 @@ import {
   getAdvisorFollowupStats,
   insertLeadStatusHistory,
   getRfqTimeByLeadId,
+  getVehicleOptions
 } from "./lead.model.js";
 
 const createLeads = asyncHandler(async (req, res) => {
@@ -401,6 +402,13 @@ export const getAdvisorFollowupStatsController = asyncHandler(
       );
   },
 );
+
+export const getVehicleOptionsController = asyncHandler(async (req, res) => {
+  const options = await getVehicleOptions();
+  return res
+    .status(200)
+    .json(new ApiResponse(200, options, "Vehicle options fetched successfully"));
+});
 
 export const getAdvisorFollowupDetailsController = asyncHandler(
   async (req, res) => {

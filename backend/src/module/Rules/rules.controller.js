@@ -38,8 +38,8 @@ const getAdviserbyzones = asyncHandler(async (req, res) => {
 });
 
 const createEntry = asyncHandler(async (req, res) => {
-  const { type, months, monthLeads, advisorId, shiftTiming, lead, overflow } =
-    req.body;
+  const { type, months, monthLeads, advisorId, shiftTiming, lead, overflow, overflowLead, maxLimit } =
+  req.body;
 
   if (!type || !advisorId || !Array.isArray(months) || months.length === 0) {
     throw new ApiError(400, "Required fields missing: type, advisorId, months");
@@ -52,7 +52,9 @@ const createEntry = asyncHandler(async (req, res) => {
     advisorId,
     shiftTiming,
     lead: lead || 0,
-    overflow,
+overflow: overflow || "",
+overflowLead,
+maxLimit,
   });
 
   return res
@@ -90,8 +92,8 @@ const getEntries = asyncHandler(async (req, res) => {
 const updateEntry = asyncHandler(async (req, res) => {
   const { id } = req.params;
 
-  const { type, months, monthLeads, advisorId, shiftTiming, lead, overflow } =
-    req.body;
+  const { type, months, monthLeads, advisorId, shiftTiming, lead, overflow, overflowLead, maxLimit } =
+  req.body;
 
   if (!type || !advisorId || !Array.isArray(months) || months.length === 0) {
     throw new ApiError(400, "Required fields missing: type, advisorId, months");
@@ -104,7 +106,10 @@ const updateEntry = asyncHandler(async (req, res) => {
     advisorId,
     shiftTiming,
     lead: lead || 0,
-    overflow,
+  lead: lead || 0,
+overflow: overflow || "",
+overflowLead,
+maxLimit,
   });
 
   if (!updated) {

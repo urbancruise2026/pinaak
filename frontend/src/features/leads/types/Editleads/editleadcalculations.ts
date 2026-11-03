@@ -210,6 +210,8 @@ export const prepareLeadPayload = (
     vehicle2Quantity: Number(data.vehicle2Quantity) || 0,
     vehicle3Quantity: Number(data.vehicle3Quantity) || 0,
     requirementVehicle: data.requirementVehicle || "",
+    vehicle_option: data.vehicle_option || "",
+    ba_rated: data.ba_rated || "",
     remarks: data.remarks || "",
     lost_reason: data.lost_reason || "",
     lostReasonDetails: data.lostReasonDetails || "",
@@ -320,7 +322,8 @@ export const mapInitialDataToForm = (initialData: LeadRecord) => {
       vehicle2Quantity: (initialData as any).vehicle2Quantity || 0,
       vehicle3Quantity: (initialData as any).vehicle3Quantity || 0,
       requirementVehicle: initialData.requirementVehicle || "",
-
+      vehicle_option: (initialData as any).vehicle_option || "",
+      ba_rated: (initialData as any).ba_rated || "",
       remarks: initialData.remarks || "",
       lost_reason: initialData.lost_reason || "",
       lostReasonDetails: initialData.lostReasonDetails || "",

@@ -27,6 +27,8 @@ export const LEAD_COLUMNS = {
   VEHICLE_TYPE: "vehicles",
   VEHICLE_vehicle3: "vehicle3",
   REQUIREMENT_VEHICLE: "requirementVehicle",
+  BA_RATED: "ba_rated",
+  VEHICLE_OPTION: "vehicle_option",
   OCCASION_TYPE: "occasion",
   PICKUP_DATETIME: "pickupDateTime",
   DROP_DATETIME: "dropDateTime",
@@ -70,6 +72,8 @@ export const insertLead = async (data) => {
       customer_id,
       date,
       enquiryTime,
+      ba_rated,
+      vehicle_option,
 
       source,
       presales_id,
@@ -109,15 +113,17 @@ export const insertLead = async (data) => {
       vehicle2Quantity,
       vehicle3Quantity,
     } = data;
-
+    
     const leadUuid = generateUUID();
-
+    
     // STRING SAFE
     const safe = (v) => (v === "" || v === undefined ? null : v);
-
+    
     // INTEGER SAFE
     const int = (v) => Number(v) || 0;
-
+    safe(ba_rated),
+    safe(vehicle_option)
+    
     const liveorexpiry =
       pickupDateTime && new Date(pickupDateTime) <= new Date()
         ? "EXPIRY"
@@ -207,10 +213,12 @@ export const insertLead = async (data) => {
         ${LEAD_COLUMNS.PICKUP_CITY},
         ${LEAD_COLUMNS.LOST_REASON},
         ${LEAD_COLUMNS.CITY_ID},
-         ${LEAD_COLUMNS.CITY},
+        ${LEAD_COLUMNS.CITY},
         ${LEAD_COLUMNS.VEHICLE1QUANTITY},
         ${LEAD_COLUMNS.VEHICLE2QUANTITY},
         ${LEAD_COLUMNS.VEHICLE3QUANTITY},
+        ${LEAD_COLUMNS.BA_RATED},
+        ${LEAD_COLUMNS.VEHICLE_OPTION},
         ${LEAD_COLUMNS.LIVE_OR_EXPIRY}
       )
       VALUES (${values.map(() => "?").join(", ")})
@@ -504,6 +512,8 @@ export const getLeads = async (
       l.vehicle2Quantity,
       l.vehicle3Quantity,
       l.requirementVehicle,
+      l.ba_rated,
+      l.vehicle_option,
       l.remarks,
       l.message,
       l.lost_reason,
@@ -714,6 +724,16 @@ export const updateLeadUnwantedStatus = async (leadId, status) => {
     console.error("updateLeadUnwantedStatus error:", error);
     throw error;
   }
+};
+
+export const getVehicleOptions = async () => {
+  const [rows] = await pool.query(
+    `SELECT id, name AS label
+     FROM vehicle_options
+     WHERE is_active = 1
+     ORDER BY name ASC`,
+  );
+  return rows;
 };
 
 export const getAllUnwantedLeadsModel = async () => {
