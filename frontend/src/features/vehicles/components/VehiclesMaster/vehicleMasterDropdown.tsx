@@ -56,9 +56,15 @@ export const getVariantDisplayByCode = (code: string): string => {
 
 export const MAKE_OPTIONS: string[] = [
   "Ashok Leyland",
+  "Audi",
+  "BMW",
   "Bharat Benz",
   "Eicher",
   "Force Motors",
+  "Honda",
+  "Hyundai",
+  "Kia",
+  "Maruti",
   "Mercedes Benz",
   "SML Mahindra",
   "Suzuki",
@@ -67,15 +73,45 @@ export const MAKE_OPTIONS: string[] = [
   "Volvo",
 ];
 
-export const MODEL_OPTIONS: string[] = [
-  "Crysta",
-  "Ertiga",
-  "Lux Bus",
-  "Mini Bus",
-  "Traveller",
-  "Urbania",
-  "Vellfire",
-];
+// Models available for each make. Selecting a make should only show these.
+export const MODELS_BY_MAKE: Record<string, string[]> = {
+  Toyota: ["Crysta", "Hycross", "Fortuner", "Vellfire"],
+  Maruti: ["Dzire", "Ertiga", "Ciaz", "Invicto"],
+  Suzuki: ["Dzire", "Ertiga", "Ciaz", "Invicto"],
+  Kia: ["Sonet", "Seltos", "Carens", "Carnival"],
+  Audi: ["Q3", "A4", "A6", "Q7", "Q5", "Q8"],
+  "Mercedes Benz": [
+    "A Class",
+    "GLA",
+    "C Class",
+    "S Class",
+    "E Class",
+    "EQS",
+    "GLB",
+    "GLC",
+    "G Class",
+    "V Class",
+  ],
+  Hyundai: ["Creta", "Venue", "i20", "Verna", "Alcazar", "Exter", "Tucson"],
+  Honda: ["City", "Amaze", "Elevate", "Civic", "Jazz", "WR-V", "CR-V"],
+  BMW: ["3 Series", "5 Series", "7 Series", "X1", "X3", "X5", "X7"],
+  "Force Motors": ["Traveller", "Urbania"],
+  "Ashok Leyland": ["Lux Bus", "Mini Bus"],
+  "Bharat Benz": ["Lux Bus", "Mini Bus"],
+  Eicher: ["Lux Bus", "Mini Bus"],
+  "SML Mahindra": ["Lux Bus", "Mini Bus"],
+  Tata: ["Lux Bus", "Mini Bus"],
+  Volvo: ["Lux Bus"],
+};
+
+// Flat list of every model (de-duplicated), useful as a fallback.
+export const MODEL_OPTIONS: string[] = Array.from(
+  new Set(Object.values(MODELS_BY_MAKE).flat()),
+);
+
+// Returns models for the selected make; all models if no make is selected.
+export const getModelsByMake = (make: string): string[] =>
+  make ? (MODELS_BY_MAKE[make] ?? []) : MODEL_OPTIONS;
 
 export const CATEGORY_OPTIONS: string[] = [
   "Car",

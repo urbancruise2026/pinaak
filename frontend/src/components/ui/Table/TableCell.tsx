@@ -17,14 +17,12 @@ const TableCell: React.FC<TableCellProps> = ({
   sticky = false,
   rowIndex = 0,
   className = "",
+  title,
 }) => {
   if (header) {
     return (
       <th
-        className={`
-          ${sticky ? tableStyles.stickyHeaderCell : tableStyles.headerCell}
-          ${className}
-        `}
+        className={`${sticky ? tableStyles.stickyHeaderCell : tableStyles.headerCell} ${className}`}
       >
         {children}
       </th>
@@ -33,14 +31,12 @@ const TableCell: React.FC<TableCellProps> = ({
   const isEven = rowIndex % 2 === 0;
   return (
     <td
-      className={`
-        ${
-          sticky
-            ? `${tableStyles.stickyCell} ${isEven ? tableStyles.stickyEvenCell : tableStyles.stickyOddCell}`
-            : tableStyles.cell
-        }
-        ${className}
-      `}
+      title={title}
+      className={`${
+        sticky
+          ? `${tableStyles.stickyCell} ${isEven ? tableStyles.stickyEvenCell : tableStyles.stickyOddCell}`
+          : tableStyles.cell
+      } ${className}`}
     >
       {children}
     </td>

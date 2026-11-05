@@ -11,6 +11,54 @@ const MAKE_CODES = {
   kia: "KI", // confirm karo
   volvo: "VO",
   mahindra: "MH", // confirm karo
+  audi: "AU", // confirm karo
+  maruti: "MR", // confirm karo
+};
+
+const MODEL_CODES = {
+  // Audi
+  q3: "Q3",
+  a4: "A4",
+  a6: "A6",
+  q7: "Q7",
+  q5: "Q5",
+  q8: "Q8",
+
+  // Mercedes
+  "a class": "AC",
+  gla: "GLA",
+  "c class": "CC",
+  "s class": "SC",
+  "e class": "EC",
+  eqs: "EQS",
+  glb: "GLB",
+  glc: "GLC",
+  "g class": "GC",
+  "v class": "VC",
+
+  // Toyota
+  crysta: "CRY",
+  hycross: "HYC",
+  fortuner: "FOR",
+  vellfire: "VEL",
+
+  // Maruti
+  dzire: "DZI",
+  ertiga: "ERT",
+  ciaz: "CIA",
+  invicto: "INV",
+
+  // Kia
+  sonet: "SON",
+  seltos: "SEL",
+  carens: "CAR",
+  carnival: "CRN",
+
+  // Buses
+  "lux bus": "LXB",
+  "mini bus": "MNB",
+  traveller: "TRV",
+  urbania: "URB",
 };
 
 const getMakeCode = (make) => {
@@ -24,9 +72,20 @@ const getMakeCode = (make) => {
   return code;
 };
 
-export const generateVehicleCode = (seat, category, config, make) => {
-  if (!seat || !category || !config || !make) {
-    throw new Error("Seat, Category, Config and Make are required.");
+const getModelCode = (model) => {
+  const key = model.trim().toLowerCase().replace(/\s+/g, " ");
+  const code = MODEL_CODES[key];
+
+  if (!code) {
+    throw new Error(`Unknown model: ${model}`);
+  }
+
+  return code;
+};
+
+export const generateVehicleCode = (seat, category, config, make, model) => {
+  if (!seat || !category || !config || !make || !model) {
+    throw new Error("Seat, Category, Config, Make and Model are required.");
   }
 
   const words = category.trim().split(/\s+/);
@@ -41,6 +100,7 @@ export const generateVehicleCode = (seat, category, config, make) => {
   }
 
   const makeCode = getMakeCode(make);
+  const modelCode = getModelCode(model);
 
-  return `${seat}-${categoryCode}-${config}-${makeCode}`;
+  return `${seat}-${categoryCode}-${config}-${makeCode}-${modelCode}`;
 };

@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useEffect, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-import { Plus, X, Eye } from "lucide-react";
+import { Plus, X, Eye, Pencil, Trash2, Loader2 } from "lucide-react";
 import Pagination from "@/components/ui/pagination";
 import type { AppDispatch, RootState } from "@/store/store";
 import {
@@ -10,6 +10,7 @@ import {
   fetchSeatOptions,
   getVehicleById,
   clearVehicle,
+  deleteVehicle, // 👈 new thunk (see end of message)
 } from "@/features/vehicles/vehicleSlice";
 import VehicleForm from "./VehiclesMasterForm";
 import { CATEGORY_OPTIONS, VARIANT_OPTIONS } from "./vehicleMasterDropdown";
@@ -21,6 +22,12 @@ import TableCell from "@/components/ui/Table/TableCell";
 import VehicleCodeHover from "../VehicleCodeHover";
 import LeadPageHeader from "@/components/ui/PageHeader/TablePageHeader";
 import VehicleViewModal from "./VehicleMasterModel";
+import type { Vehicle } from "@/types/types";
+
+const PAGE_LIMIT = 20;
+
+const iconBtn =
+  "flex h-8 w-8 items-center justify-center rounded-lg transition-colors disabled:cursor-not-allowed disabled:opacity-50";
 
 const VehicleTable: React.FC = () => {
   const dispatch = useDispatch<AppDispatch>();
@@ -41,147 +48,90 @@ const VehicleTable: React.FC = () => {
 
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
+
   const [showForm, setShowForm] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<Vehicle | null>(null);
   const [showViewModal, setShowViewModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<Vehicle | null>(null);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
   const [selectedSeats, setSelectedSeats] = useState<string[]>([]);
   const [selectedVariants, setSelectedVariants] = useState<string[]>([]);
 
-  // =====================================================
-  // FETCH SEAT OPTIONS
-  // =====================================================
+  const formOpen = showForm || !!editingVehicle;
 
   useEffect(() => {
     dispatch(fetchSeatOptions());
   }, [dispatch]);
 
-  // =====================================================
-  // CATEGORY OPTIONS
-  // =====================================================
-
-  const categoryOptions = CATEGORY_OPTIONS.map((category) => ({
-    code: category,
-    label: category,
+  const categoryOptions = CATEGORY_OPTIONS.map((c) => ({ code: c, label: c }));
+  const seatDropdownOptions = (seatOptions || []).map((s) => ({
+    code: s,
+    label: `${s} Seater`,
+  }));
+  const variantOptions = VARIANT_OPTIONS.map((v) => ({
+    code: v.code,
+    label: v.code,
   }));
 
-  // =====================================================
-  // SEAT OPTIONS
-  // =====================================================
-
-  const seatDropdownOptions = (seatOptions || []).map((seat) => ({
-    code: seat,
-    label: `${seat} Seater`,
-  }));
-
-  // =====================================================
-  // VARIANT OPTIONS
-  // =====================================================
-
-  const variantOptions = VARIANT_OPTIONS.map((variant) => ({
-    code: variant.code,
-    label: variant.code,
-  }));
-
-  // =====================================================
-  // BUILD API PARAMS
-  // =====================================================
-
-  const buildParams = (pageNum: number) => ({
-    search: search.trim(),
-    page: pageNum,
-    limit: 20,
-
-    category:
-      selectedCategories.length > 0 ? selectedCategories.join(",") : undefined,
-
-    seat: selectedSeats.length > 0 ? selectedSeats.join(",") : undefined,
-
-    variant:
-      selectedVariants.length > 0 ? selectedVariants.join(",") : undefined,
-  });
-
-  // =====================================================
-  // FETCH VEHICLES
-  // =====================================================
+  const fetchVehicles = useCallback(
+    (page: number) =>
+      dispatch(
+        vehicleslice({
+          search: search.trim(),
+          page,
+          limit: PAGE_LIMIT,
+          category: selectedCategories.length
+            ? selectedCategories.join(",")
+            : undefined,
+          seat: selectedSeats.length ? selectedSeats.join(",") : undefined,
+          variant: selectedVariants.length
+            ? selectedVariants.join(",")
+            : undefined,
+        }),
+      ),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [dispatch, selectedCategories, selectedSeats, selectedVariants],
+  );
 
   useEffect(() => {
-    dispatch(vehicleslice(buildParams(currentPage)));
-  }, [
-    dispatch,
-    currentPage,
-    selectedCategories,
-    selectedSeats,
-    selectedVariants,
-  ]);
+    fetchVehicles(currentPage);
+  }, [fetchVehicles, currentPage]);
 
-  // =====================================================
-  // BODY SCROLL LOCK (Add Vehicle modal + View modal)
-  // =====================================================
-
+  // Body scroll lock
   useEffect(() => {
-    document.body.style.overflow = showForm || showViewModal ? "hidden" : "";
-
+    document.body.style.overflow =
+      formOpen || showViewModal || deleteTarget ? "hidden" : "";
     return () => {
       document.body.style.overflow = "";
     };
-  }, [showForm, showViewModal]);
+  }, [formOpen, showViewModal, deleteTarget]);
 
-  // =====================================================
-  // SEARCH SUBMIT
-  // =====================================================
+  // ---------- handlers ----------
 
-  const handleSearchSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-
-    setCurrentPage(1);
-
-    dispatch(
-      vehicleslice({
-        ...buildParams(1),
-      }),
-    );
-  };
-
-  // =====================================================
-  // ADD VEHICLE SUCCESS
-  // =====================================================
-
-  const handleVehicleSuccess = () => {
+  const closeForm = () => {
     setShowForm(false);
-
-    setCurrentPage(1);
-
-    dispatch(
-      vehicleslice({
-        search: search.trim(),
-        page: 1,
-        limit: 20,
-
-        category:
-          selectedCategories.length > 0
-            ? selectedCategories.join(",")
-            : undefined,
-
-        seat: selectedSeats.length > 0 ? selectedSeats.join(",") : undefined,
-
-        variant:
-          selectedVariants.length > 0 ? selectedVariants.join(",") : undefined,
-      }),
-    );
+    setEditingVehicle(null);
   };
 
-  // =====================================================
-  // VIEW VEHICLE
-  // =====================================================
-
-  const handleViewVehicle = (vehicleId: string | number | undefined) => {
-    if (!vehicleId) {
-      return;
+  const handleFormSuccess = () => {
+    const wasEditing = !!editingVehicle;
+    closeForm();
+    if (wasEditing) {
+      fetchVehicles(currentPage); // stay on same page after edit
+    } else if (currentPage === 1) {
+      fetchVehicles(1);
+    } else {
+      setCurrentPage(1); // effect refetches
     }
+  };
 
+  const handleViewVehicle = (id: string | number | undefined) => {
+    if (!id) return;
     setShowViewModal(true);
-    dispatch(getVehicleById(String(vehicleId)));
+    dispatch(getVehicleById(String(id)));
   };
 
   const handleCloseViewModal = () => {
@@ -189,263 +139,238 @@ const VehicleTable: React.FC = () => {
     dispatch(clearVehicle());
   };
 
-  // =====================================================
-  // PAGE CHANGE
-  // =====================================================
-
-  const handlePageChange = (pageNum: number) => {
-    setCurrentPage(pageNum);
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget?.id) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      await dispatch(deleteVehicle(String(deleteTarget.id))).unwrap();
+      setDeleteTarget(null);
+      // if last row on a page > 1 got deleted, go back one page
+      if (vehicleCodes.length === 1 && currentPage > 1) {
+        setCurrentPage(currentPage - 1);
+      } else {
+        fetchVehicles(currentPage);
+      }
+    } catch (err: any) {
+      setDeleteError(
+        typeof err === "string" ? err : err?.message || "Failed to delete",
+      );
+    } finally {
+      setDeleting(false);
+    }
   };
 
   return (
-    <div className="w-full">
-      <div className="mb-4 shrink-0">
-        <LeadPageHeader
-          title="Vehicles Master"
-          description={`${total ?? 0} vehicles registered`}
+    // Whole page = one screen. Only the table body scrolls.
+    <div className="flex h-[calc(100vh-6rem)] w-full flex-col gap-3">
+      <LeadPageHeader
+        title="Vehicles Master"
+        description={`${total ?? 0} vehicles registered`}
+      >
+        <div className="shrink-0">
+          <VehicleFilters
+            categoryOptions={categoryOptions}
+            seatDropdownOptions={seatDropdownOptions}
+            variantOptions={variantOptions}
+            selectedCategories={selectedCategories}
+            selectedSeats={selectedSeats}
+            selectedVariants={selectedVariants}
+            seatOptionsLoading={seatOptionsLoading}
+            setSelectedCategories={setSelectedCategories}
+            setSelectedSeats={setSelectedSeats}
+            setSelectedVariants={setSelectedVariants}
+            setCurrentPage={setCurrentPage}
+          />
+        </div>
+
+        <button
+          type="button"
+          onClick={() => setShowForm(true)}
+          className="flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-lg bg-indigo-500 px-4 text-sm font-semibold text-white transition-colors hover:bg-indigo-600"
         >
-          <div className="shrink-0">
-            <VehicleFilters
-              categoryOptions={categoryOptions}
-              seatDropdownOptions={seatDropdownOptions}
-              variantOptions={variantOptions}
-              selectedCategories={selectedCategories}
-              selectedSeats={selectedSeats}
-              selectedVariants={selectedVariants}
-              seatOptionsLoading={seatOptionsLoading}
-              setSelectedCategories={setSelectedCategories}
-              setSelectedSeats={setSelectedSeats}
-              setSelectedVariants={setSelectedVariants}
-              setCurrentPage={setCurrentPage}
-            />
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setShowForm(true)}
-            className="flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg bg-gradient-to-r from-orange-500 to-orange-600 px-4 text-sm font-bold text-white shadow-md shadow-orange-200 transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-orange-300 active:scale-[0.98]"
-          >
-            <Plus size={16} />
-            Add Vehicle
-          </button>
-        </LeadPageHeader>
-      </div>
-
-      {/* =====================================================
-          ERROR
-      ===================================================== */}
+          <Plus size={16} />
+          Add Vehicle
+        </button>
+      </LeadPageHeader>
 
       {error && (
-        <div className="mb-5 rounded-lg border border-red-200 bg-red-50 p-4 font-semibold text-red-700">
+        <div className="rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-medium text-rose-700">
           {error}
         </div>
       )}
 
-      {/* =====================================================
-          TABLE
-      ===================================================== */}
+      {/* TABLE — fills remaining height, scrolls inside */}
+     <div className="min-h-0 flex-1">
+  <Table minWidth="min-w-[1100px]" className="h-full">
+          <TableHeader>
+            <TableRow alternate={false}>
+              <TableCell header sticky>
+                #
+              </TableCell>
+              <TableCell header>Code</TableCell>
+              <TableCell header>Seat</TableCell>
+              <TableCell header>Config</TableCell>
+              <TableCell header>Category</TableCell>
+              <TableCell header>Make</TableCell>
+              <TableCell header>Model</TableCell>
+              <TableCell header>Variant</TableCell>
+              <TableCell header>Description</TableCell>
+              <TableCell header>Highlight</TableCell>
+              <TableCell header>Action</TableCell>
+            </TableRow>
+          </TableHeader>
 
-      <Table minWidth="min-w-[1500px]" maxHeight="max-h-[920px]">
-        <TableHeader>
-          <TableRow alternate={false}>
-            <TableCell header sticky>
-              #
-            </TableCell>
+          <tbody>
+            {loading && (
+              <tr>
+                <td colSpan={11} className="py-16 text-center">
+                  <div className="flex flex-col items-center gap-2 text-slate-400">
+                    <Loader2 size={24} className="animate-spin text-indigo-400" />
+                    <span className="text-sm">Loading vehicles...</span>
+                  </div>
+                </td>
+              </tr>
+            )}
 
-            <TableCell header>Code</TableCell>
-
-            <TableCell header>Seat</TableCell>
-
-            <TableCell header>Config</TableCell>
-
-            <TableCell header>Category</TableCell>
-
-            <TableCell header>Make</TableCell>
-
-            <TableCell header>Model</TableCell>
-
-            <TableCell header>Variant</TableCell>
-
-            <TableCell header>Description</TableCell>
-
-            <TableCell header>Highlight</TableCell>
-
-            {/* ACTION */}
-            <TableCell header>Action</TableCell>
-          </TableRow>
-        </TableHeader>
-
-        <tbody>
-          {/* =====================================================
-              LOADING
-          ===================================================== */}
-
-          {loading && (
-            <tr>
-              <td colSpan={11} className="px-5 py-16 text-center">
-                <div className="flex flex-col items-center justify-center gap-2 text-gray-400">
-                  <div className="h-7 w-7 animate-spin rounded-full border-2 border-gray-200 border-t-orange-500" />
-
-                  <span className="text-sm font-medium">
-                    Loading vehicles...
-                  </span>
-                </div>
-              </td>
-            </tr>
-          )}
-
-          {/* =====================================================
-              EMPTY
-          ===================================================== */}
-
-          {!loading && vehicleCodes.length === 0 && (
-            <tr>
-              <td colSpan={11} className="px-5 py-16 text-center text-gray-500">
-                <div className="flex flex-col items-center gap-2">
-                  <span className="text-sm font-medium">No vehicles found</span>
-                </div>
-              </td>
-            </tr>
-          )}
-
-          {/* =====================================================
-              DATA
-          ===================================================== */}
-
-          {!loading &&
-            vehicleCodes.map((v, index) => (
-              <TableRow key={v.id ?? index} index={index}>
-                {/* S.NO */}
-
-                <TableCell sticky rowIndex={index}>
-                  {(currentPage - 1) * limit + index + 1}
-                </TableCell>
-
-                {/* CODE */}
-
-                <TableCell>
-                  <VehicleCodeHover
-                    code={v.code}
-                    seat={v.seat}
-                    category={v.category}
-                    config={v.config}
-                  />
-                </TableCell>
-
-                {/* SEAT */}
-
-                <TableCell>{v.seat || "-"}</TableCell>
-
-                {/* CONFIG */}
-
-                <TableCell>{v.config || "-"}</TableCell>
-
-                {/* CATEGORY */}
-
-                <TableCell>{v.category || "-"}</TableCell>
-
-                {/* MAKE */}
-
-                <TableCell>{v.make || "-"}</TableCell>
-
-                {/* MODEL */}
-
-                <TableCell>{v.model || "-"}</TableCell>
-
-                {/* VARIANT */}
-
-                <TableCell>{v.variant || "-"}</TableCell>
-
-                {/* DESCRIPTION */}
-
-                <TableCell
-                  className="max-w-[350px]"
-                  title={v.description || ""}
+            {!loading && vehicleCodes.length === 0 && (
+              <tr>
+                <td
+                  colSpan={11}
+                  className="py-16 text-center text-sm text-slate-500"
                 >
-                  <div className="whitespace-normal leading-5">
-                    {v.description || "-"}
-                  </div>
-                </TableCell>
+                  No vehicles found
+                </td>
+              </tr>
+            )}
 
-                {/* HIGHLIGHT / AMENITIES */}
+            {!loading &&
+              vehicleCodes.map((v, index) => (
+                <TableRow key={v.id ?? index} index={index}>
+                  <TableCell sticky rowIndex={index}>
+                    {(currentPage - 1) * limit + index + 1}
+                  </TableCell>
 
-                <TableCell className="max-w-[350px]" title={v.amenities || ""}>
-                  <div className="whitespace-normal leading-5">
-                    {v.amenities || "-"}
-                  </div>
-                </TableCell>
+                  <TableCell>
+                    <VehicleCodeHover
+  code={v.code}
+  seat={v.seat}
+  category={v.category}
+  config={v.config}
+  make={v.make}
+  model={v.model}
+  variant={v.variant}
+/>
+                  </TableCell>
 
-                {/* =================================================
-                    ACTION
-                ================================================= */}
+                  <TableCell>{v.seat || "-"}</TableCell>
+                  <TableCell>{v.config || "-"}</TableCell>
+                  <TableCell>{v.category || "-"}</TableCell>
+                  <TableCell>{v.make || "-"}</TableCell>
+                  <TableCell>{v.model || "-"}</TableCell>
+                  <TableCell>{v.variant || "-"}</TableCell>
 
-                <TableCell>
-                  <button
-                    type="button"
-                    onClick={() => handleViewVehicle(v.id)}
-                    disabled={!v.id}
-                    title="View Vehicle"
-                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-orange-500 px-3 text-xs font-bold text-white shadow-sm transition-all duration-200 hover:bg-orange-600 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
+                  <TableCell
+                    className="max-w-[260px]"
+                    title={v.description || ""}
                   >
-                    <Eye size={15} />
-                    View
-                  </button>
-                </TableCell>
-              </TableRow>
-            ))}
-        </tbody>
-      </Table>
+                    <div className="line-clamp-2 whitespace-normal leading-5">
+                      {v.description || "-"}
+                    </div>
+                  </TableCell>
 
-      {/* =====================================================
-          PAGINATION
-      ===================================================== */}
+                  <TableCell
+                    className="max-w-[260px]"
+                    title={v.amenities || ""}
+                  >
+                    <div className="line-clamp-2 whitespace-normal leading-5">
+                      {v.amenities || "-"}
+                    </div>
+                  </TableCell>
 
+                  <TableCell>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        title="View"
+                        aria-label="View vehicle"
+                        disabled={!v.id}
+                        onClick={() => handleViewVehicle(v.id)}
+                        className={`${iconBtn} bg-sky-50 text-sky-600 hover:bg-sky-100`}
+                      >
+                        <Eye size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        title="Edit"
+                        aria-label="Edit vehicle"
+                        disabled={!v.id}
+                        onClick={() => setEditingVehicle(v)}
+                        className={`${iconBtn} bg-emerald-50 text-emerald-600 hover:bg-emerald-100`}
+                      >
+                        <Pencil size={16} />
+                      </button>
+                      {/* <button
+                        type="button"
+                        title="Delete"
+                        aria-label="Delete vehicle"
+                        disabled={!v.id}
+                        onClick={() => {
+                          setDeleteError(null);
+                          setDeleteTarget(v);
+                        }}
+                        className={`${iconBtn} bg-rose-50 text-rose-500 hover:bg-rose-100`}
+                      >
+                        <Trash2 size={16} />
+                      </button> */}
+                    </div>
+                  </TableCell>
+                </TableRow>
+              ))}
+          </tbody>
+        </Table>
+      </div>
+
+      {/* PAGINATION — no wrapper card */}
       {total > 0 && (
-        <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={total}
-            rowsPerPage={limit}
-            onPageChange={handlePageChange}
-          />
-        </div>
+        <Pagination
+          currentPage={currentPage}
+          totalPages={totalPages}
+          totalItems={total}
+          rowsPerPage={limit}
+          onPageChange={setCurrentPage}
+        />
       )}
 
-      {/* =====================================================
-    ADD VEHICLE MODAL
-===================================================== */}
-
-      {showForm && (
+      {/* ADD / EDIT MODAL */}
+      {formOpen && (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
-          onClick={() => setShowForm(false)}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/30 p-4"
+          onClick={closeForm}
         >
           <div
-            className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-2xl"
+            className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white shadow-xl"
             onClick={(e) => e.stopPropagation()}
           >
-            {/* CLOSE */}
             <button
               type="button"
-              onClick={() => setShowForm(false)}
-              className="absolute right-4 top-4  flex h-9 w-9 items-center justify-center rounded-full bg-red-800 text-white transition hover:bg-red-200 hover:text-red-700"
+              onClick={closeForm}
+              aria-label="Close"
+              className="absolute right-4 top-4 flex h-8 w-8 items-center justify-center rounded-full bg-slate-100 text-slate-500 transition-colors hover:bg-rose-100 hover:text-rose-600"
             >
-              <X size={18} />
+              <X size={16} />
             </button>
-
-            {/* FORM */}
             <div className="p-6">
-              <VehicleForm onSuccess={handleVehicleSuccess} />
+              <VehicleForm
+                vehicle={editingVehicle}
+                onSuccess={handleFormSuccess}
+              />
             </div>
           </div>
         </div>
       )}
 
-      {/* =====================================================
-          VIEW VEHICLE MODAL
-      ===================================================== */}
-
+      {/* VIEW MODAL */}
       {showViewModal && (
         <VehicleViewModal
           vehicle={vehicle}
@@ -454,6 +379,58 @@ const VehicleTable: React.FC = () => {
           onClose={handleCloseViewModal}
         />
       )}
+
+      {/* DELETE CONFIRM */}
+      {/* {deleteTarget && (
+        <div
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-slate-900/30 p-4"
+          onClick={() => !deleting && setDeleteTarget(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-full bg-rose-50 text-rose-500">
+              <Trash2 size={20} />
+            </div>
+            <h3 className="text-base font-semibold text-slate-800">
+              Delete vehicle?
+            </h3>
+            <p className="mt-1 text-sm text-slate-500">
+              <span className="font-semibold text-slate-700">
+                {deleteTarget.code}
+              </span>{" "}
+              will be permanently removed.
+            </p>
+
+            {deleteError && (
+              <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-sm text-rose-600">
+                {deleteError}
+              </p>
+            )}
+
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-lg bg-slate-100 px-4 py-2 text-sm font-medium text-slate-600 transition-colors hover:bg-slate-200 disabled:opacity-50"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                disabled={deleting}
+                onClick={handleConfirmDelete}
+                className="inline-flex items-center gap-2 rounded-lg bg-rose-500 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-rose-600 disabled:opacity-60"
+              >
+                {deleting && <Loader2 size={14} className="animate-spin" />}
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )} */}
     </div>
   );
 };

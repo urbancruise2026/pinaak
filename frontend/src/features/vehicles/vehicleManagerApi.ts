@@ -295,3 +295,18 @@ export const getVehicleManagerByIdApi = async (
     );
   }
 };
+
+
+export const updateVehicleManagerApi = async (
+  id: number | string,
+  data: Omit<Vehicle, "id">,
+): Promise<Vehicle> => {
+  try {
+    const res = await axiosInstance.put(`/vehiclemanager/${id}`, data);
+    return res.data?.data;
+  } catch (error: any) {
+    throw new Error(
+      error?.response?.data?.message || "Failed to update vehicle manager",
+    );
+  }
+};

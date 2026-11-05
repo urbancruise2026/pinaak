@@ -8,6 +8,8 @@ import {
   PaginatedVehicles,
   getSeatOptionsApi,
   getVehicleByIdApi,
+  updateVehicleApi,
+  deleteVehicleApi,
 } from "./vehicleApi";
 
 interface VehicleState {
@@ -315,7 +317,46 @@ const vehicleSlice = createSlice({
 
         state.vehicleError = action.payload || "Failed to fetch vehicle";
       });
+
+    builder
+      .addCase(updateVehicle.fulfilled, (state, action) => {
+        const idx = state.vehicleCodes.findIndex(
+          (v) => String(v.id) === String(action.payload.id),
+        );
+        if (idx !== -1) state.vehicleCodes[idx] = action.payload;
+      })
+      .addCase(deleteVehicle.fulfilled, (state, action) => {
+        state.vehicleCodes = state.vehicleCodes.filter(
+          (v) => String(v.id) !== String(action.payload),
+        );
+        state.total = Math.max(0, state.total - 1);
+      });
   },
+  
+});
+
+export const updateVehicle = createAsyncThunk<
+  Vehicle,
+  { id: string; data: Vehicle },
+  { rejectValue: string }
+>("vehicle/updateVehicle", async ({ id, data }, { rejectWithValue }) => {
+  try {
+    return await updateVehicleApi(id, data);
+  } catch (error: any) {
+    return rejectWithValue(error?.message || "Failed to update vehicle");
+  }
+});
+
+export const deleteVehicle = createAsyncThunk<
+  string,
+  string,
+  { rejectValue: string }
+>("vehicle/deleteVehicle", async (id, { rejectWithValue }) => {
+  try {
+    return await deleteVehicleApi(id);
+  } catch (error: any) {
+    return rejectWithValue(error?.message || "Failed to delete vehicle");
+  }
 });
 
 // =====================================================

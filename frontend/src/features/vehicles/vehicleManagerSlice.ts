@@ -3,6 +3,7 @@ import { Vehicle } from "@/types/types";
 import {
   VehicleStatus,
   createVehiclesManagerApi,
+  updateVehicleManagerApi,
   getVehicleManagersApi,
   GetVehicleManagersParams,
   GetVehicleManagersResponse,
@@ -89,6 +90,23 @@ export const createVehicleManager = createAsyncThunk<
     } catch (error: any) {
       return rejectWithValue(
         error?.message || "Failed to create vehicle manager",
+      );
+    }
+  },
+);
+
+export const updateVehicleManager = createAsyncThunk<
+  Vehicle,
+  { id: number | string; data: Omit<Vehicle, "id"> },
+  { rejectValue: string }
+>(
+  "vehicleManager/updateVehicleManager",
+  async ({ id, data }, { rejectWithValue }) => {
+    try {
+      return await updateVehicleManagerApi(id, data);
+    } catch (error: any) {
+      return rejectWithValue(
+        error?.message || "Failed to update vehicle manager",
       );
     }
   },
