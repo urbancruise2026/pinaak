@@ -7,13 +7,23 @@ interface VehicleCodeHoverProps {
   seat?: string | number | null;
   category?: string | null;
   config?: string | null;
+  make?: string | null;
+  model?: string | null;
+  variant?: string | null;
 }
+
+const LABEL = "text-[10px] font-semibold uppercase tracking-wider text-gray-400";
+
+const Divider = () => <div className="h-8 w-px bg-gray-200" />;
 
 const VehicleCodeHover: React.FC<VehicleCodeHoverProps> = ({
   code,
   seat,
   category,
   config,
+  make,
+  model,
+  variant,
 }) => {
   const [showTooltip, setShowTooltip] = useState(false);
   const [position, setPosition] = useState({
@@ -23,6 +33,21 @@ const VehicleCodeHover: React.FC<VehicleCodeHoverProps> = ({
 
   const codeRef = useRef<HTMLSpanElement>(null);
 
+  useEffect(() => {
+    if (!showTooltip) return;
+
+    const handleScroll = () => {
+      setShowTooltip(false);
+    };
+
+    window.addEventListener("scroll", handleScroll, true);
+
+    return () => {
+      window.removeEventListener("scroll", handleScroll, true);
+    };
+  }, [showTooltip]);
+
+  // Early return must come AFTER all hooks (rules of hooks)
   if (!code) {
     return <span>-</span>;
   }
@@ -31,6 +56,14 @@ const VehicleCodeHover: React.FC<VehicleCodeHoverProps> = ({
   const displaySeat = seat || "-";
   const displayCategory = category || "-";
   const displayConfig = config || "-";
+  const displayMake = make || "-";
+  const displayModel = model || "-";
+  const variants = variant
+    ? variant
+        .split(",")
+        .map((v) => v.trim())
+        .filter(Boolean)
+    : [];
 
   const handleMouseEnter = () => {
     if (!codeRef.current) return;
@@ -48,20 +81,6 @@ const VehicleCodeHover: React.FC<VehicleCodeHoverProps> = ({
   const handleMouseLeave = () => {
     setShowTooltip(false);
   };
-
-  useEffect(() => {
-    if (!showTooltip) return;
-
-    const handleScroll = () => {
-      setShowTooltip(false);
-    };
-
-    window.addEventListener("scroll", handleScroll, true);
-
-    return () => {
-      window.removeEventListener("scroll", handleScroll, true);
-    };
-  }, [showTooltip]);
 
   return (
     <>
@@ -113,43 +132,75 @@ const VehicleCodeHover: React.FC<VehicleCodeHoverProps> = ({
             "
           />
 
-          <div className="relative z-10 flex items-center gap-4 whitespace-nowrap">
-            {/* SEAT */}
-            <div className="flex min-w-[45px] flex-col items-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                Seat
-              </span>
+          <div className="relative z-10 flex flex-col gap-3 whitespace-nowrap">
+            {/* ROW 1: SEAT / CATEGORY / CONFIG */}
+            <div className="flex items-center gap-4">
+              <div className="flex min-w-[45px] flex-col items-center">
+                <span className={LABEL}>Seat</span>
+                <span className="mt-0.5 text-sm font-bold text-gray-800">
+                  {displaySeat}
+                </span>
+              </div>
 
-              <span className="mt-0.5 text-sm font-bold text-gray-800">
-                {displaySeat}
-              </span>
+              <Divider />
+
+              <div className="flex min-w-[65px] flex-col items-center">
+                <span className={LABEL}>Category</span>
+                <span className="mt-0.5 text-sm font-bold text-orange-600">
+                  {displayCategory}
+                </span>
+              </div>
+
+              <Divider />
+
+              <div className="flex min-w-[50px] flex-col items-center">
+                <span className={LABEL}>Config</span>
+                <span className="mt-0.5 text-sm font-bold text-gray-800">
+                  {displayConfig}
+                </span>
+              </div>
             </div>
 
-            {/* DIVIDER */}
-            <div className="h-8 w-px bg-gray-200" />
+            {/* HORIZONTAL DIVIDER */}
+            <div className="h-px w-full bg-gray-200" />
 
-            {/* CATEGORY */}
-            <div className="flex min-w-[65px] flex-col items-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                Category
-              </span>
-              <span className="mt-0.5 text-sm font-bold text-orange-600">
-                {displayCategory}
-              </span>{" "}
-            </div>
+            {/* ROW 2: MAKE / MODEL / VARIANT */}
+            <div className="flex items-center gap-4">
+              <div className="flex min-w-[45px] flex-col items-center">
+                <span className={LABEL}>Make</span>
+                <span className="mt-0.5 text-sm font-bold text-gray-800">
+                  {displayMake}
+                </span>
+              </div>
 
-            {/* DIVIDER */}
-            <div className="h-8 w-px bg-gray-200" />
+              <Divider />
 
-            {/* CONFIG */}
-            <div className="flex min-w-[50px] flex-col items-center">
-              <span className="text-[10px] font-semibold uppercase tracking-wider text-gray-400">
-                Config
-              </span>
+              <div className="flex min-w-[65px] flex-col items-center">
+                <span className={LABEL}>Model</span>
+                <span className="mt-0.5 text-sm font-bold text-gray-800">
+                  {displayModel}
+                </span>
+              </div>
 
-              <span className="mt-0.5 text-sm font-bold text-gray-800">
-                {displayConfig}
-              </span>
+              <Divider />
+
+              <div className="flex min-w-[50px] flex-col items-center">
+                <span className={LABEL}>Variant</span>
+                <div className="mt-0.5 flex flex-wrap justify-center gap-1">
+                  {variants.length ? (
+                    variants.map((v) => (
+                      <span
+                        key={v}
+                        className="rounded-full bg-orange-50 px-2 py-0.5 text-xs font-semibold text-orange-600"
+                      >
+                        {v}
+                      </span>
+                    ))
+                  ) : (
+                    <span className="text-sm font-bold text-gray-800">-</span>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
         </div>

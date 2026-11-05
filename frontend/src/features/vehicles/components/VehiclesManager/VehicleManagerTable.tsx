@@ -5,14 +5,7 @@ import React, { useEffect, useRef, useState } from "react";
 import VehicleManagerExtraFilters from "./VehicleManagerExtraFilters";
 import VehicleFilters from "../VehicleFilters";
 
-import {
-  Loader2,
-  Plus,
-  ArrowLeft,
-  ChevronDown,
-  CalendarCheck,
-  Eye,
-} from "lucide-react";
+import { Loader2, Plus, ArrowLeft, ChevronDown, CalendarCheck, Eye, Pencil } from "lucide-react";
 
 import { useDispatch, useSelector } from "react-redux";
 
@@ -140,6 +133,8 @@ const VehiclesManager: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
 
   const [showForm, setShowForm] = useState(false);
+  const [editingVehicle, setEditingVehicle] = useState<VehicleManagerRow | null>(null);
+const formOpen = showForm || !!editingVehicle;
 
   // ===================================================
   // FIXED STATUS MENU STATE
@@ -260,31 +255,16 @@ const VehiclesManager: React.FC = () => {
   // ===================================================
   // FETCH ON FILTER CHANGE
   // ===================================================
-
-  useEffect(() => {
-    if (showForm) {
-      return;
-    }
-
-    const timer = window.setTimeout(() => {
-      fetchVehicles();
-    }, 300);
-
-    return () => {
-      window.clearTimeout(timer);
-    };
-  }, [
-    search,
-    selectedYears,
-    selectedCodes,
-    selectedCities,
-    selectedCategories,
-    selectedSeats,
-    selectedVariants,
-    currentPage,
-    showForm,
-  ]);
-
+useEffect(() => {
+  if (formOpen) return;
+  const timer = window.setTimeout(fetchVehicles, 300);
+  return () => window.clearTimeout(timer);
+}, [
+  search, selectedYears, selectedCodes, selectedCities,
+  selectedCategories, selectedSeats, selectedVariants,
+  currentPage, formOpen,
+]);
+  
   // ===================================================
   // CLOSE STATUS MENU ON OUTSIDE CLICK
   // ===================================================
@@ -470,13 +450,15 @@ const VehiclesManager: React.FC = () => {
     setSelectedSeats([]);
     setSelectedVariants([]);
 
-    dispatch(
-      getVehicleManagers({
-        page: 1,
-        limit: PAGE_SIZE,
-      }),
-    );
+    // dispatch(
+    //   getVehicleManagers({
+    //     page: 1,
+    //     limit: PAGE_SIZE,
+    //   }),
+    // );
   };
+
+  const handleCloseEdit = () => setEditingVehicle(null);
 
   // ===================================================
   // PAGINATION
@@ -537,25 +519,28 @@ const VehiclesManager: React.FC = () => {
   // ===================================================
   // FORM PAGE
   // ===================================================
-
-  if (showForm) {
-    return (
-      <div className="w-full">
-        <div className="mb-6 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={handleBackToTable}
-            className="flex items-center gap-2 rounded-lg bg-gray-600 px-5 py-3 font-bold text-white shadow-md transition hover:bg-gray-700"
-          >
-            <ArrowLeft size={20} />
-            Back to Vehicles Manager
-          </button>
-        </div>
-
-        <VehicleForm />
+if (formOpen) {
+  return (
+    <div className="w-full">
+      <div className="mb-6 flex items-center justify-between">
+        <button
+          type="button"
+          onClick={editingVehicle ? handleCloseEdit : handleBackToTable}
+          className="flex items-center gap-2 rounded-lg bg-gray-600 px-5 py-3 font-bold text-white shadow-md transition hover:bg-gray-700"
+        >
+          <ArrowLeft size={20} />
+          Back to Vehicles Manager
+        </button>
       </div>
-    );
-  }
+
+      <VehicleForm
+        key={editingVehicle?.id ?? "new"}
+        vehicle={editingVehicle}
+        onSuccess={editingVehicle ? handleCloseEdit : undefined}
+      />
+    </div>
+  );
+}
 
   // ===================================================
   // SAFE VEHICLES
@@ -652,10 +637,7 @@ const VehiclesManager: React.FC = () => {
           TABLE
       ================================================= */}
 
-      <Table
-        minWidth="min-w-[1650px]"
-        maxHeight="max-h-[920px]"
-      >
+     <Table minWidth="min-w-[1650px]">
         <TableHeader>
           <TableRow alternate={false}>
             <TableCell header sticky>
@@ -991,25 +973,29 @@ const VehiclesManager: React.FC = () => {
                   {/* VIEW */}
 
                   <TableCell>
-                    <button
-                      type="button"
-                      onClick={() =>
-                        handleViewVehicle(
-                          vehicleId,
-                        )
-                      }
-                      disabled={
-                        vehicleId ===
-                          undefined ||
-                        vehicleId === null
-                      }
-                      title="View Vehicle"
-                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg bg-orange-500 px-3 text-xs font-bold text-white shadow-sm transition-all duration-200 hover:bg-orange-600 hover:shadow-md active:scale-95 disabled:cursor-not-allowed disabled:opacity-50"
-                    >
-                      <Eye size={15} />
-                      View
-                    </button>
-                  </TableCell>
+  <div className="flex items-center gap-1.5">
+    <button
+      type="button"
+      title="View"
+      aria-label="View vehicle"
+      disabled={vehicleId === undefined || vehicleId === null}
+      onClick={() => handleViewVehicle(vehicleId)}
+      className="flex h-8 w-8 items-center justify-center rounded-lg bg-sky-50 text-sky-600 transition-colors hover:bg-sky-100 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <Eye size={16} />
+    </button>
+    <button
+      type="button"
+      title="Edit"
+      aria-label="Edit vehicle"
+      disabled={vehicleId === undefined || vehicleId === null}
+      onClick={() => setEditingVehicle(row)}
+      className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600 transition-colors hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+    >
+      <Pencil size={16} />
+    </button>
+  </div>
+</TableCell>
                 </TableRow>
               );
             })}
@@ -1021,7 +1007,7 @@ const VehiclesManager: React.FC = () => {
       ================================================= */}
 
       {!loading && safeTotal > 0 && (
-        <div className="mt-2 shrink-0 rounded-xl border border-slate-200 bg-white px-5 py-4 shadow-sm">
+        <div className="shrink-0 border-slate-200 bg-white px-2 py-2 shadow-sm">
           <Pagination
             currentPage={currentPage}
             totalPages={safeTotalPages}

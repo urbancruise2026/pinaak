@@ -246,6 +246,60 @@ export const getSeatOptionsModel = async () => {
   }
 };
 
+export const updateVehicleModel = async (id, payload) => {
+  try {
+    const {
+      code,
+      seat,
+      config,
+      category,
+      make,
+      model,
+      variant,
+      description,
+      amenities,
+    } = payload;
+
+    const [result] = await pool.execute(
+      `UPDATE vehicle_master
+       SET code = ?, seat = ?, config = ?, category = ?, make = ?,
+           model = ?, variant = ?, description = ?, amenities = ?
+       WHERE id = ?`,
+      [
+        code,
+        seat,
+        config,
+        category,
+        make,
+        model,
+        JSON.stringify(variant), // same format as create
+        description,
+        amenities,
+        id,
+      ],
+    );
+
+    if (result.affectedRows === 0) return null;
+    return await getVehicleById(id);
+  } catch (error) {
+    console.error("updateVehicleModel error:", error);
+    throw error;
+  }
+};
+
+export const deleteVehicleModel = async (id) => {
+  try {
+    const [result] = await pool.execute(
+      `DELETE FROM vehicle_master WHERE id = ?`,
+      [id],
+    );
+    return result.affectedRows > 0;
+  } catch (error) {
+    console.error("deleteVehicleModel error:", error);
+    throw error;
+  }
+};
+
 export const getVehicleVariantByCodeModel = async (code) => {
   try {
     const [rows] = await pool.execute(

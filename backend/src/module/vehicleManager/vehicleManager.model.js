@@ -181,6 +181,50 @@ export const createVehicleManagerModel = async (payload) => {
     throw error;
   }
 };
+
+export const updateVehicleManagerModel = async (id, payload) => {
+  try {
+    const {
+      code,
+      vendor,
+      model,
+      variant,
+      veh_no,
+      garage,
+      city,
+      reg_date,
+      aging,
+      amenities,
+    } = payload;
+
+    const [result] = await pool.execute(
+      `UPDATE vehicle_manager
+       SET code = ?, vendor = ?, model = ?, variant = ?, veh_no = ?,
+           garage = ?, city = ?, reg_date = ?, aging = ?, amenities = ?
+       WHERE id = ?`,
+      [
+        code,
+        vendor || null,
+        model || null,
+        variant || null,
+        veh_no,
+        garage || null,
+        city || null,
+        reg_date || null,
+        aging ?? null,
+        amenities || null,
+        id,
+      ],
+    );
+
+    if (result.affectedRows === 0) return null;
+    return await getVehicleManagerById(id);
+  } catch (error) {
+    console.error("updateVehicleManagerModel error:", error);
+    throw error;
+  }
+};
+
 export const getAllVehicleManagersModel = async ({
   search = "",
   vendor = "",
