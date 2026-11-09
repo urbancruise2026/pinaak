@@ -104,10 +104,13 @@ const getVehiclesById = asyncHandler(async (req, res) => {
 export const updateVehicle = asyncHandler(async (req, res) => {
   const { id } = req.params;
   const payload = req.body;
-  const { seat, category, make, config } = payload;
+  const { seat, category, make, config, model } = payload;
 
-  if (!seat || !category || !make || !config) {
-    throw new ApiError(400, "Seat, category, make and config are required");
+  if (!seat || !category || !make || !config || !model) {
+    throw new ApiError(
+      400,
+      "Seat, category, config, make and model are required",
+    );
   }
 
   const current = await getVehicleById(id);
@@ -115,7 +118,12 @@ export const updateVehicle = asyncHandler(async (req, res) => {
     throw new ApiError(404, "Vehicle not found");
   }
 
-  const code = generateVehicleCode(seat, category, config, make);
+  let code;
+  try {
+    code = generateVehicleCode(seat, category, config, make, model);
+  } catch (err) {
+    throw new ApiError(400, err.message); // unknown make/model -> 400, not 500
+  }
   payload.code = code;
 
   // code must stay unique, ignoring this same row
@@ -130,6 +138,7 @@ export const updateVehicle = asyncHandler(async (req, res) => {
     .status(200)
     .json(new ApiResponse(200, result, "Vehicle updated successfully"));
 });
+
 
 export const deleteVehicle = asyncHandler(async (req, res) => {
   const { id } = req.params;
