@@ -13,10 +13,7 @@ const MAKE_CODES = {
   mahindra: "MH", // confirm karo
   audi: "AU", // confirm karo
   maruti: "MR", // confirm karo
-<<<<<<< HEAD
-=======
   "volvo eicher": "VE",
->>>>>>> 018e14f809b643ec446fe87f307acb18c7a522d7
 };
 
 const MODEL_CODES = {
@@ -56,22 +53,16 @@ const MODEL_CODES = {
   sonet: "SON",
   seltos: "SEL",
   carens: "CAR",
-<<<<<<< HEAD
   carnival: "CRN",
-=======
-   carnival: "CRN",
   "carnival 6-crn-l": "CRN-L",
   "carnival 6-crn-l+": "CRN-L+",
   "carnival 6-crn-p": "CRN-P",
->>>>>>> 018e14f809b643ec446fe87f307acb18c7a522d7
 
   // Buses
   "lux bus": "LXB",
   "mini bus": "MNB",
   traveller: "TRV",
   urbania: "URB",
-<<<<<<< HEAD
-=======
   // Volvo
   "lux bus": "LUX BUS",
   "vo96": "VO96",
@@ -88,9 +79,7 @@ const MODEL_CODES = {
   "sl vo96 w": "SL-VO96-W",
   "vo96slx": "VO96SLX",
   "vo96slx w": "VO96SLX-W",
-  "slp": "SLP"
-  
->>>>>>> 018e14f809b643ec446fe87f307acb18c7a522d7
+  "slp": "SLP",
 };
 
 const getMakeCode = (make) => {
@@ -135,9 +124,4 @@ export const generateVehicleCode = (seat, category, config, make, model) => {
   const modelCode = getModelCode(model);
 
   return `${seat}-${categoryCode}-${config}-${makeCode}-${modelCode}`;
-<<<<<<< HEAD
 };
-
-=======
-};
->>>>>>> 018e14f809b643ec446fe87f307acb18c7a522d7
