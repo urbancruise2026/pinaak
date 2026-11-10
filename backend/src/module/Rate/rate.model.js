@@ -31,7 +31,6 @@ export const createRateQuotationModel = async (payload) => {
     advisorId ? Number(advisorId) : null, // Ensure it's properly formatted
   ];
 
-
   const [result] = await pool.execute(query, values);
 
   if (!result.affectedRows) {
@@ -278,8 +277,8 @@ export const getAllRateQuotationModel = async (
         const placeholders = uniqueAdvisorIds.map(() => "?").join(",");
         const [advisors] = await hrmsPool.query(
           `
-            SELECT id, aliasName
-            FROM users
+            SELECT id, alias_name AS aliasName
+            FROM uc_staff
             WHERE id IN (${placeholders})
           `,
           uniqueAdvisorIds,

@@ -589,8 +589,8 @@ END AS liveorexpiry,
     try {
       const placeholders = allUserIds.map(() => "?").join(",");
       const [users] = await hrmsPool.query(
-        `SELECT id, aliasName, firstName, middleName, lastName, shortName
-         FROM users
+        `SELECT id, alias_name AS aliasName, first_name AS firstName, middle_name AS middleName, last_name AS lastName, short_name AS shortName
+         FROM uc_staff
          WHERE id IN (${placeholders})`,
         allUserIds,
       );
@@ -869,8 +869,8 @@ export const getLeadById = async (id) => {
       try {
         const placeholders = userIds.map(() => "?").join(",");
         const [users] = await hrmsPool.query(
-          `SELECT id, aliasName, firstName, middleName, lastName, shortName
-           FROM users
+          `SELECT id, alias_name AS aliasName, first_name AS firstName, middle_name AS middleName, last_name AS lastName, short_name AS shortName
+           FROM uc_staff
            WHERE id IN (${placeholders})`,
           userIds,
         );
@@ -1000,13 +1000,8 @@ export const getAdvisorFollowupStats = async (cityIds = []) => {
         const [users] = await hrmsPool.query(
           `
           SELECT
-            id,
-            aliasName,
-            firstName,
-            middleName,
-            lastName,
-            shortName
-          FROM users
+            id, alias_name AS aliasName, first_name AS firstName, middle_name AS middleName, last_name AS lastName, short_name AS shortName
+          FROM uc_staff
           WHERE id IN (${placeholders})
           `,
           advisorIds,

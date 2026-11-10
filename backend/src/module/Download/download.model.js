@@ -53,8 +53,8 @@ export const getLeadReport = async (month, year) => {
       try {
         const placeholders = userIds.map(() => "?").join(",");
         const [users] = await hrmsPool.query(
-          `SELECT id, aliasName, firstName, middleName, lastName, shortName
-           FROM users
+          `SELECT id, alias_name AS aliasName, first_name AS firstName, middle_name AS middleName, last_name AS lastName, short_name AS shortName
+           FROM uc_staff
            WHERE id IN (${placeholders})`,
           userIds,
         );

@@ -28,17 +28,19 @@ const getVehicleCodeList = asyncHandler(async (req, res) => {
 
 export const createVehicle = asyncHandler(async (req, res) => {
   const payload = req.body;
-  const { seat, category, make, config } = payload;
 
-  if (!seat || !category || !make || !config) {
+  const { seat, category, make, config, model } = payload;
+
+  if (!seat || !category || !make || !config || !model) {
     throw new ApiError(400, "Seat, category, make and config are required");
   }
 
-  const code = generateVehicleCode(seat, category, config);
+  const code = generateVehicleCode(seat, category, config, make, model);
 
   payload.code = code;
 
   const existingVehicle = await getVehicleByCode(code);
+  console.log(" code ", code);
   if (existingVehicle) {
     throw new ApiError(409, "Vehicle already exists with this code");
   }
@@ -122,6 +124,7 @@ const getVehicleVariantByCodeController = asyncHandler(async (req, res) => {
       new ApiResponse(200, vehicle, "Vehicle variants fetched successfully"),
     );
 });
+
 export {
   getVehicleCodeList,
   getVehiclesById,

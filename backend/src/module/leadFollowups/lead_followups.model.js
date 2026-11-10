@@ -177,13 +177,13 @@ export const getAllLeads = async () => {
         id,
         TRIM(
           CONCAT(
-            COALESCE(firstName, ''),
+            COALESCE(first_name, ''),
             ' ',
-            COALESCE(lastName, '')
+            COALESCE(last_name, '')
           )
         ) AS name
 
-      FROM users
+      FROM uc_staff
 
       WHERE id IN (?)
       `,

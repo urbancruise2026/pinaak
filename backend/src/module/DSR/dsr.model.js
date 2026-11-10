@@ -466,8 +466,8 @@ export const getAllDsrModel = async (
           `
             SELECT
               id,
-              aliasName
-            FROM users
+              alias_name AS aliasName
+            FROM uc_staff
             WHERE id IN (${placeholders})
           `,
           uniqueAdvisorIds,

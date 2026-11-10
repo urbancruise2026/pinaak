@@ -5,6 +5,8 @@ import {
   findVendorByUserName,
   saveHrmsRefreshToken,
   saveVendorRefreshToken,
+  recordHrmsLoginEvent,
+  findUserById,
 } from "./user.model.js";
 import { ApiError } from "../../utils/ApiError.js";
 
@@ -30,7 +32,13 @@ const generateTokens = ({ id, role, loginType }) => {
   return { accessToken, refreshToken };
 };
 
-const loginService = async ({ username, password, loginType }) => {
+const loginService = async ({
+  username,
+  password,
+  loginType,
+  ipAddress = null,
+  userAgent = null,
+}) => {
   if (!username || !password) {
     throw new ApiError(400, "Username and password are required");
   }
@@ -58,16 +66,47 @@ const loginService = async ({ username, password, loginType }) => {
       throw new ApiError(400, "Invalid login type");
   }
 
+  const isEmployee = loginType === "employee";
+
   if (!user) {
+    if (isEmployee) {
+      await recordHrmsLoginEvent({
+        usernameAttempted: username,
+        eventType: "login_failed",
+        failureReason: "user_not_found",
+        ipAddress,
+        userAgent,
+      });
+    }
     throw new ApiError(404, "User not found");
   }
 
   if (Number(user.is_active) !== 1) {
+    if (isEmployee) {
+      await recordHrmsLoginEvent({
+        staffId: user.id,
+        usernameAttempted: username,
+        eventType: "login_failed",
+        failureReason: "account_inactive",
+        ipAddress,
+        userAgent,
+      });
+    }
     throw new ApiError(403, "Your account is inactive. Please contact admin.");
   }
   const validPassword = await isPasswordCorrect(password, user.password);
 
   if (!validPassword) {
+    if (isEmployee) {
+      await recordHrmsLoginEvent({
+        staffId: user.id,
+        usernameAttempted: username,
+        eventType: "login_failed",
+        failureReason: "invalid_password",
+        ipAddress,
+        userAgent,
+      });
+    }
     throw new ApiError(401, "Invalid credentials");
   }
 
@@ -78,9 +117,21 @@ const loginService = async ({ username, password, loginType }) => {
   });
 
   switch (loginType) {
-    case "employee":
-      await saveHrmsRefreshToken(user.id, refreshToken);
+    case "employee": {
+      const { sessionId } = await saveHrmsRefreshToken(user.id, refreshToken, {
+        ipAddress,
+        userAgent,
+      });
+      await recordHrmsLoginEvent({
+        staffId: user.id,
+        sessionId,
+        usernameAttempted: username,
+        eventType: "login_success",
+        ipAddress,
+        userAgent,
+      });
       break;
+    }
 
     case "vendor":
       await saveVendorRefreshToken(user.id, refreshToken);
@@ -97,8 +148,12 @@ const loginService = async ({ username, password, loginType }) => {
 
   delete user.password;
 
+  // Employees: return the full staff profile (uc_staff + role / department /
+  // access control) like the old `users` row, not just the credential row.
+  const loginUser = isEmployee ? await findUserById(user.id) : user;
+
   return {
-    loginUser: user,
+    loginUser,
     accessToken,
     refreshToken,
   };

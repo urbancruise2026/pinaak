@@ -7,13 +7,14 @@ export const findTravelAdvisorsByCityId = async (cityId) => {
     const [rows] = await hrmsPool.execute(
       `SELECT 
          u.id,
-         u.aliasName,
-         u.middleName,
-         u.lastName,
-         u.is_online
-       FROM users u
+         u.alias_name  AS aliasName,
+         u.middle_name AS middleName,
+         u.last_name   AS lastName,
+         acr.is_online
+       FROM uc_staff u
        INNER JOIN roles r ON u.role_id = r.id
-       INNER JOIN sub_department sd ON u.subDepartment_id = sd.id
+       INNER JOIN sub_department sd ON u.sub_department_id = sd.id
+       LEFT JOIN auth_credentials acr ON acr.staff_id = u.id
        INNER JOIN access_control ac ON ac.employee_id = u.id
        INNER JOIN access_control_cities acc ON acc.access_control_id = ac.id
        WHERE acc.city_id = ?
@@ -618,14 +619,9 @@ export const getLeadsByAdvisorId = async (
         const [users] = await hrmsPool.query(
           `
               SELECT
-                id,
-                aliasName,
-                firstName,
-                middleName,
-                lastName,
-                shortName
+                id, alias_name AS aliasName, first_name AS firstName, middle_name AS middleName, last_name AS lastName, short_name AS shortName
 
-              FROM users
+              FROM uc_staff
 
               WHERE id IN (${placeholders})
             `,
@@ -1158,7 +1154,7 @@ export const getSwapLeadsByAdvisorId = async (
     try {
       const placeholders = allUserIds.map(() => "?").join(",");
       const [users] = await hrmsPool.query(
-        `SELECT id, aliasName, firstName, middleName, lastName, shortName FROM users WHERE id IN (${placeholders})`,
+        `SELECT id, alias_name AS aliasName, first_name AS firstName, middle_name AS middleName, last_name AS lastName, short_name AS shortName FROM uc_staff WHERE id IN (${placeholders})`,
         allUserIds,
       );
       users.forEach((u) => {
@@ -1354,8 +1350,8 @@ export const getHighPaxLeads = async (
     try {
       const placeholders = uniqueAdvisorIds.map(() => "?").join(",");
       const [users] = await hrmsPool.query(
-        `SELECT id, aliasName, firstName, middleName, lastName, shortName
-         FROM users
+        `SELECT id, alias_name AS aliasName, first_name AS firstName, middle_name AS middleName, last_name AS lastName, short_name AS shortName
+         FROM uc_staff
          WHERE id IN (${placeholders})`,
         uniqueAdvisorIds,
       );
@@ -1534,13 +1530,8 @@ export const getLongDurationLeads = async (
       const [users] = await hrmsPool.query(
         `
             SELECT
-              id,
-              aliasName,
-              firstName,
-              middleName,
-              lastName,
-              shortName
-            FROM users
+              id, alias_name AS aliasName, first_name AS firstName, middle_name AS middleName, last_name AS lastName, short_name AS shortName
+            FROM uc_staff
             WHERE id IN (${placeholders})
           `,
         uniqueAdvisorIds,

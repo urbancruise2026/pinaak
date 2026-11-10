@@ -11,7 +11,7 @@ export const pool = mysql.createPool({
   database: process.env.DB_NAME,
   timezone: IST_TIMEZONE,
   waitForConnections: true,
-  connectionLimit: 15, // 100 se ghatakar realistic number par
+  connectionLimit: 10, // 100 se ghatakar realistic number par
   queueLimit: 30, // 0 nahi — bounded queue
   connectTimeout: 10000, // 10 sec mein connect na ho to fail
   idleTimeout: 60000, // idle connections release ho jayein

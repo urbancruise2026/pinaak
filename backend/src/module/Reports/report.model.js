@@ -105,8 +105,8 @@ export const getPreSalesLeadAssignmentReport = async (cityIds, month, year) => {
   const [advisorUsers] = await hrmsPool.execute(
     `SELECT 
      u.id,
-     CONCAT_WS(' ', u.aliasName) AS adviser_name
-   FROM users u
+     CONCAT_WS(' ', u.alias_name) AS adviser_name
+   FROM uc_staff u
    INNER JOIN roles r ON u.role_id = r.id
    INNER JOIN access_control ac ON ac.employee_id = u.id
    INNER JOIN access_control_cities acc ON acc.access_control_id = ac.id
@@ -252,8 +252,8 @@ export const getMonthlyStatusWiseReport = async (
     const [rows] = await hrmsPool.execute(
       `SELECT 
         id,
-        CONCAT_WS(' ', aliasName) AS adviser_name
-     FROM users
+        CONCAT_WS(' ', alias_name) AS adviser_name
+     FROM uc_staff
      WHERE id IN (${placeholders})`,
       advisorIds,
     );
@@ -269,8 +269,8 @@ export const getMonthlyStatusWiseReport = async (
     const [rows] = await hrmsPool.execute(
       `SELECT 
           u.id,
-          CONCAT_WS(' ', u.aliasName) AS adviser_name
-       FROM users u
+          CONCAT_WS(' ', u.alias_name) AS adviser_name
+       FROM uc_staff u
        INNER JOIN roles r ON u.role_id = r.id
        INNER JOIN access_control ac ON ac.employee_id = u.id
        INNER JOIN access_control_cities acc ON acc.access_control_id = ac.id
@@ -422,8 +422,8 @@ export const getMonthlyDateWiseStatusReport = async (cityIds, month, year) => {
   const [advisors] = await hrmsPool.execute(
     `SELECT
         u.id,
-        u.aliasName AS adviser_name
-     FROM users u
+        u.alias_name AS adviser_name
+     FROM uc_staff u
      INNER JOIN roles r
         ON u.role_id = r.id
      INNER JOIN access_control ac

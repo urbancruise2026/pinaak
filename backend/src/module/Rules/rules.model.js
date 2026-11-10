@@ -26,7 +26,7 @@ export const findAdvisorsShiftTimingByZoneIds = async (zoneIds) => {
     const [empRows] = await hrmsPool.query(
       `SELECT DISTINCT ac.employee_id
        FROM access_control ac
-       INNER JOIN users u ON u.id = ac.employee_id
+       INNER JOIN uc_staff u ON u.id = ac.employee_id
        WHERE ac.id IN (${acPlaceholders})
          AND u.role_id = 34`,
       accessControlIds,
@@ -41,10 +41,16 @@ export const findAdvisorsShiftTimingByZoneIds = async (zoneIds) => {
     // Step 3: Employee IDs -> Advisor Details (name etc.)
     const namePlaceholders = zoneAdvisorIds.map(() => "?").join(",");
     const [advisorUsers] = await hrmsPool.query(
-      `SELECT id, aliasName, firstName, middleName, lastName, shiftTiming
-       FROM users
-       WHERE id IN (${namePlaceholders})
-         AND role_id = 34`,
+      `SELECT u.id,
+              u.alias_name  AS aliasName,
+              u.first_name  AS firstName,
+              u.middle_name AS middleName,
+              u.last_name   AS lastName,
+              emp.shift_timing AS shiftTiming
+       FROM uc_staff u
+       LEFT JOIN uc_staff_employment emp ON emp.staff_id = u.id
+       WHERE u.id IN (${namePlaceholders})
+         AND u.role_id = 34`,
       zoneAdvisorIds,
     );
 
@@ -143,7 +149,7 @@ export const getRuleEntries = async ({ advisorIds } = {}) => {
     const placeholders = advisorIdList.map(() => "?").join(",");
 
     const [advisorRows] = await hrmsPool.query(
-      `SELECT id, aliasName FROM users WHERE id IN (${placeholders})`,
+      `SELECT id, alias_name AS aliasName FROM uc_staff WHERE id IN (${placeholders})`,
       advisorIdList,
     );
 

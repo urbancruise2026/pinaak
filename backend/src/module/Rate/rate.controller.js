@@ -89,7 +89,7 @@ export const getAllRateQuotations = asyncHandler(async (req, res) => {
           const [empRows] = await hrmsPool.query(
             `SELECT DISTINCT ac.employee_id
              FROM access_control ac
-             INNER JOIN users u ON u.id = ac.employee_id
+             INNER JOIN uc_staff u ON u.id = ac.employee_id
              WHERE ac.id IN (${acPlaceholders})
                AND u.role_id = 34`,
             accessControlIds,
@@ -101,8 +101,8 @@ export const getAllRateQuotations = asyncHandler(async (req, res) => {
         if (zoneAdvisorIds.length > 0) {
           const namePlaceholders = zoneAdvisorIds.map(() => "?").join(",");
           const [advisorUsers] = await hrmsPool.query(
-            `SELECT id, aliasName, firstName, middleName, lastName
-             FROM users
+            `SELECT id, alias_name AS aliasName, first_name AS firstName, middle_name AS middleName, last_name AS lastName
+             FROM uc_staff
              WHERE id IN (${namePlaceholders})
                AND role_id = 34`,
             zoneAdvisorIds,

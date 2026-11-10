@@ -12,6 +12,8 @@ import {
   updateUserById,
   updateUserRefreshToken,
   findHrmsUserByUserName,
+  revokeHrmsSessions,
+  recordHrmsLoginEvent,
 } from "./user.model.js";
 import {
   generateTokens,
@@ -106,6 +108,8 @@ const loginUser = asyncHandler(async (req, res) => {
     username,
     password,
     loginType,
+    ipAddress: req.ip,
+    userAgent: req.headers["user-agent"],
   });
 
   const cookieOptions = {
@@ -193,7 +197,21 @@ export const updateUserController = asyncHandler(async (req, res) => {
 });
 
 export const userLogout = asyncHandler(async (req, res) => {
-  await updateUserRefreshToken(req.user.id, null);
+  // Employees: revoke the session that owns this refresh token (auth_sessions)
+  if (req.user.loginType === "employee") {
+    await revokeHrmsSessions(
+      req.user.id,
+      req.cookies?.refreshToken || null,
+      "logout",
+    );
+    await recordHrmsLoginEvent({
+      staffId: req.user.id,
+      eventType: "logout",
+      ipAddress: req.ip,
+      userAgent: req.headers["user-agent"],
+    });
+  }
+
   const options = {
     httpOnly: true,
     secure: process.env.NODE_ENV === "production",

@@ -29,6 +29,7 @@ export const getVehicles = async () => {
 };
 
 export const getVehicleByCode = async (code) => {
+  console.log(" code---", code);
   try {
     const [rows] = await pool.execute(
       `SELECT id FROM vehicle_master WHERE code = ? LIMIT 1`,

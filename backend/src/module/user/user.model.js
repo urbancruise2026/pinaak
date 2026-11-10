@@ -1,13 +1,36 @@
+import crypto from "node:crypto";
 import { hrmsPool, pool } from "../../config/mySqlDB.js";
 import bcrypt from "bcrypt";
 import { generateUUID } from "../../utils/uuid.js";
 
 export const USER_TABLE = "users";
 
+// Refresh tokens are never stored in plain text. auth_sessions keeps only the
+// SHA-256 hex digest (char(64)).
+export const hashRefreshToken = (token) =>
+  crypto.createHash("sha256").update(String(token)).digest("hex");
+
+// Login lookup: auth_credentials (username + password_hash) joined with
+// uc_staff (profile / role / active flag). `password` is an alias of
+// password_hash so existing callers keep working.
 export const findHrmsUserByUserName = async (userName) => {
   try {
     const [rows] = await hrmsPool.execute(
-      `SELECT * FROM ${USER_TABLE} WHERE username = ?`,
+      `SELECT
+         u.id,
+         u.uuid,
+         u.role_id,
+         u.is_active,
+         acr.username,
+         acr.password_hash AS password,
+         acr.access_role,
+         r.role_name,
+         r.role_name AS role
+       FROM auth_credentials acr
+       INNER JOIN uc_staff u ON u.id = acr.staff_id
+       LEFT JOIN roles r ON r.id = u.role_id
+       WHERE acr.username = ?
+       LIMIT 1`,
       [userName],
     );
     return rows[0] || null;
@@ -31,7 +54,19 @@ export const findVendorByUserName = async (userName) => {
 export const findHrmsUserById = async (id) => {
   try {
     const [rows] = await hrmsPool.execute(
-      `SELECT * FROM ${USER_TABLE} WHERE id = ?`,
+      `SELECT
+         u.*,
+         u.first_name  AS firstName,
+         u.middle_name AS middleName,
+         u.last_name   AS lastName,
+         u.alias_name  AS aliasName,
+         u.short_name  AS shortName,
+         acr.username,
+         acr.access_role,
+         acr.is_online
+       FROM uc_staff u
+       LEFT JOIN auth_credentials acr ON acr.staff_id = u.id
+       WHERE u.id = ?`,
       [id],
     );
     return rows[0] || null;
@@ -40,17 +75,113 @@ export const findHrmsUserById = async (id) => {
   }
 };
 
-// Save refresh token to HRMS DB user row
-export const saveHrmsRefreshToken = async (userId, refreshToken) => {
+// Best-effort audit trail in login_events. Never throws: a logging failure
+// must not break login / logout.
+export const recordHrmsLoginEvent = async ({
+  staffId = null,
+  sessionId = null,
+  usernameAttempted = null,
+  eventType,
+  failureReason = null,
+  ipAddress = null,
+  userAgent = null,
+}) => {
   try {
     await hrmsPool.execute(
-      `UPDATE ${USER_TABLE} SET refreshToken = ? WHERE id = ?`,
-      [refreshToken, userId],
+      `INSERT INTO login_events
+         (staff_id, session_id, username_attempted, event_type, failure_reason, ip_address, user_agent)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [
+        staffId,
+        sessionId,
+        usernameAttempted,
+        eventType,
+        failureReason,
+        ipAddress ? String(ipAddress).slice(0, 45) : null,
+        userAgent ? String(userAgent).slice(0, 512) : null,
+      ],
     );
   } catch (error) {
+    console.error("recordHrmsLoginEvent error:", error.message);
+  }
+};
+
+// Create a login session in auth_sessions (replaces users.refreshToken) and
+// stamp auth_credentials.last_login_at. Session expiry matches the 7d JWT.
+export const saveHrmsRefreshToken = async (
+  userId,
+  refreshToken,
+  { ipAddress = null, userAgent = null } = {},
+) => {
+  const connection = await hrmsPool.getConnection();
+  try {
+    await connection.beginTransaction();
+
+    const [result] = await connection.execute(
+      `INSERT INTO auth_sessions
+         (staff_id, refresh_token_hash, ip_address, user_agent, last_used_at, expires_at)
+       VALUES (?, ?, ?, ?, NOW(), DATE_ADD(NOW(), INTERVAL 7 DAY))`,
+      [
+        userId,
+        hashRefreshToken(refreshToken),
+        ipAddress ? String(ipAddress).slice(0, 45) : null,
+        userAgent ? String(userAgent).slice(0, 512) : null,
+      ],
+    );
+
+    await connection.execute(
+      `UPDATE auth_credentials SET last_login_at = NOW() WHERE staff_id = ?`,
+      [userId],
+    );
+
+    await connection.commit();
+    return { sessionId: result.insertId };
+  } catch (error) {
+    await connection.rollback();
     console.error("saveHrmsRefreshToken error:", error);
     throw error;
+  } finally {
+    connection.release();
   }
+};
+
+// Logout: revoke the session that owns this refresh token, or every active
+// session of the staff member when no token is given.
+export const revokeHrmsSessions = async (
+  staffId,
+  refreshToken = null,
+  reason = "logout",
+) => {
+  if (!staffId) throw new Error("User ID is required");
+
+  try {
+    if (refreshToken) {
+      await hrmsPool.execute(
+        `UPDATE auth_sessions
+            SET revoked_at = NOW(), revoked_reason = ?
+          WHERE staff_id = ? AND refresh_token_hash = ? AND revoked_at IS NULL`,
+        [reason, staffId, hashRefreshToken(refreshToken)],
+      );
+    } else {
+      await hrmsPool.execute(
+        `UPDATE auth_sessions
+            SET revoked_at = NOW(), revoked_reason = ?
+          WHERE staff_id = ? AND revoked_at IS NULL`,
+        [reason, staffId],
+      );
+    }
+  } catch (error) {
+    console.error("revokeHrmsSessions error:", error);
+    throw error;
+  }
+};
+
+// Online / offline flag now lives in auth_credentials.is_online
+export const setHrmsUserOnline = async (staffId, isOnline) => {
+  await hrmsPool.execute(
+    `UPDATE auth_credentials SET is_online = ? WHERE staff_id = ?`,
+    [isOnline ? 1 : 0, staffId],
+  );
 };
 
 export const saveVendorRefreshToken = async (userId, refreshToken) => {
@@ -168,17 +299,36 @@ export const findUserById = async (id) => {
   try {
     const [rows] = await hrmsPool.execute(
       `
-      SELECT 
-        u.*, 
+      SELECT
+        u.*,
+        u.first_name  AS firstName,
+        u.middle_name AS middleName,
+        u.last_name   AS lastName,
+        u.alias_name  AS aliasName,
+        u.short_name  AS shortName,
+        u.sub_department_id AS subDepartment_id,
         r.role_name,
         h.ho_name,
         d.department_name,
-        des.subDepartment_name
-      FROM users u
+        des.subDepartment_name,
+        acr.username,
+        acr.access_role,
+        acr.is_online,
+        ct.personal_email AS personalEmail,
+        ct.office_email   AS officeEmail,
+        ct.mobile,
+        emp.branch_id,
+        emp.designation,
+        emp.grade,
+        emp.shift_timing  AS shiftTiming
+      FROM uc_staff u
       LEFT JOIN roles r ON u.role_id = r.id
       LEFT JOIN departments d ON u.department_id = d.id
       LEFT JOIN hos h ON u.ho_id = h.id
-      LEFT JOIN sub_department des ON u.subDepartment_id = des.id
+      LEFT JOIN sub_department des ON u.sub_department_id = des.id
+      LEFT JOIN auth_credentials acr ON acr.staff_id = u.id
+      LEFT JOIN uc_staff_contacts ct ON ct.staff_id = u.id
+      LEFT JOIN uc_staff_employment emp ON emp.staff_id = u.id
       WHERE u.id = ?
       `,
       [id],
@@ -280,18 +430,19 @@ export const saveRefreshToken = async (userId, refreshToken) => {
   );
 };
 
-// GET USERS BY ROLE — reads from HRMS DB (users + roles tables)
+// GET USERS BY ROLE — reads from HRMS DB (uc_staff + roles + uc_staff_contacts)
 export const getUsersByRole = async (role) => {
   try {
     const [rows] = await hrmsPool.execute(
       `SELECT
         u.uuid,
-        TRIM(CONCAT_WS(' ', u.firstName, u.middleName, u.lastName)) AS name,
-        COALESCE(u.personalEmail, u.officeEmail) AS email,
-        u.subDepartment_id AS subDepartment_name,
+        TRIM(CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name)) AS name,
+        COALESCE(ct.personal_email, ct.office_email) AS email,
+        u.sub_department_id AS subDepartment_name,
         r.role_name
-       FROM users u
+       FROM uc_staff u
        LEFT JOIN roles r ON u.role_id = r.id
+       LEFT JOIN uc_staff_contacts ct ON ct.staff_id = u.id
        WHERE LOWER(r.role_name) = LOWER(?)`,
       [role],
     );
@@ -353,20 +504,13 @@ export const updateUserById = async (
   }
 };
 
+// Kept for backward compatibility. Passing null (logout) revokes the staff
+// member's active sessions; passing a token creates a new session for it.
 export const updateUserRefreshToken = async (userId, refreshToken) => {
   if (!userId) throw new Error("User ID is required");
 
-  try {
-    await hrmsPool.execute(
-      `
-      UPDATE users 
-      SET refreshToken = ?
-      WHERE id = ?
-      `,
-      [refreshToken, userId],
-    );
-  } catch (error) {
-    console.error("updateUserRefreshToken error:", error);
-    throw error;
+  if (!refreshToken) {
+    return revokeHrmsSessions(userId, null, "logout");
   }
+  return saveHrmsRefreshToken(userId, refreshToken);
 };

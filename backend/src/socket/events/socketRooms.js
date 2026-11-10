@@ -32,9 +32,10 @@ const socketRooms = (socket, io) => {
     socket.cityIds = user.city_ids;
 
     try {
-      await hrmsPool.query("UPDATE users SET is_online = 1 WHERE id = ?", [
-        user.id,
-      ]);
+      await hrmsPool.query(
+        "UPDATE auth_credentials SET is_online = 1 WHERE staff_id = ?",
+        [user.id],
+      );
 
       // Jis city ka advisor hai, usi city room ko realtime update bhejo
       if (user.city_ids?.length) {
@@ -54,9 +55,10 @@ const socketRooms = (socket, io) => {
       try {
         if (!socket.userId) return;
 
-        await hrmsPool.query("UPDATE users SET is_online = 0 WHERE id = ?", [
-          socket.userId,
-        ]);
+        await hrmsPool.query(
+          "UPDATE auth_credentials SET is_online = 0 WHERE staff_id = ?",
+          [socket.userId],
+        );
 
         if (socket.cityIds?.length) {
           socket.cityIds.forEach((cityId) => {
