@@ -8,7 +8,10 @@ import {
   getVehicleByCode,
   getVehicleById,
   getVehicles,
-  getVehicleVariantByCodeModel,
+  getVehicleVariantByCodeModel, 
+  updateVehicleModel,
+  deleteVehicleModel,
+  
 } from "./vehiclemaster.model.js";
 import { generateVehicleCode } from "./vehiclemaster.service.js";
 
@@ -51,6 +54,7 @@ export const createVehicle = asyncHandler(async (req, res) => {
     .status(201)
     .json(new ApiResponse(201, result, "Vehicle created successfully"));
 });
+
 
 export const getAllVehicles = asyncHandler(async (req, res) => {
   const { search, category, make, seat, variant, page, limit } = req.query;
@@ -96,12 +100,62 @@ const getVehiclesById = asyncHandler(async (req, res) => {
     .json(new ApiResponse(200, vehicle, "Vehicle fetched successfully"));
 });
 
+
+export const updateVehicle = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const payload = req.body;
+  const { seat, category, make, config, model } = payload;
+
+  if (!seat || !category || !make || !config || !model) {
+    throw new ApiError(
+      400,
+      "Seat, category, config, make and model are required",
+    );
+  }
+
+  const current = await getVehicleById(id);
+  if (!current) {
+    throw new ApiError(404, "Vehicle not found");
+  }
+
+  let code;
+  try {
+    code = generateVehicleCode(seat, category, config, make, model);
+  } catch (err) {
+    throw new ApiError(400, err.message); // unknown make/model -> 400, not 500
+  }
+  payload.code = code;
+
+  // code must stay unique, ignoring this same row
+  const duplicate = await getVehicleByCode(code);
+  if (duplicate && Number(duplicate.id) !== Number(id)) {
+    throw new ApiError(409, "Vehicle already exists with this code");
+  }
+
+  const result = await updateVehicleModel(id, payload);
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, result, "Vehicle updated successfully"));
+});
+
+
+export const deleteVehicle = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+
+  const deleted = await deleteVehicleModel(id);
+  if (!deleted) {
+    throw new ApiError(404, "Vehicle not found");
+  }
+
+  return res
+    .status(200)
+    .json(new ApiResponse(200, { id }, "Vehicle deleted successfully"));
+});
+
 const getVehicleVariantByCodeController = asyncHandler(async (req, res) => {
   const { code } = req.params;
 
-  console.log("=================================");
-  console.log("Variant API called");
-  console.log("Code received:", code);
 
   if (!code) {
     throw new ApiError(400, "Vehicle code is required");
@@ -109,14 +163,13 @@ const getVehicleVariantByCodeController = asyncHandler(async (req, res) => {
 
   const vehicle = await getVehicleVariantByCodeModel(code);
 
-  console.log("Vehicle from DB:", vehicle);
+
 
   if (!vehicle) {
-    console.log("❌ Vehicle not found for code:", code);
+
     throw new ApiError(404, "Vehicle not found");
   }
 
-  console.log("✅ Variants found:", vehicle.variant);
 
   return res
     .status(200)

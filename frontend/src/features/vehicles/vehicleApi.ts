@@ -28,7 +28,26 @@ export const createvehiclesApi = async (vehicleData: Omit<Vehicle, "id">): Promi
     throw new Error(error.response?.data?.message || "Failed to create vehicle");
   }
 };
+export const updateVehicleApi = async (
+  id: string,
+  data: Omit<Vehicle, "id">,
+): Promise<Vehicle> => {
+  try {
+    const res = await axiosInstance.put(`/vehicle/${id}`, data);
+    return res.data.data;
+  } catch (error: any) {
+    throw new Error(error?.response?.data?.message || "Failed to update vehicle");
+  }
+};
 
+export const deleteVehicleApi = async (id: string): Promise<string> => {
+  try {
+    await axiosInstance.delete(`/vehicle/${id}`);
+    return id;
+  } catch (error: any) {
+    throw new Error(error?.response?.data?.message || "Failed to delete vehicle");
+  }
+};
 export const getAllVehiclesApi = async (params?: {
   search?: string;
   category?: string;

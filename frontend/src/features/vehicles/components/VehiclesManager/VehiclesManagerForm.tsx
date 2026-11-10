@@ -1,8 +1,11 @@
 "use client";
 
-import React, { useEffect, useState, useCallback} from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import Image from "next/image";
-import { CheckCircle2, XCircle,  Hash,
+import {
+  CheckCircle2,
+  XCircle,
+  Hash,
   Tag,
   Car,
   CalendarDays,
@@ -10,12 +13,14 @@ import { CheckCircle2, XCircle,  Hash,
   MapPin,
   Building2,
   Sparkles,
-  type LucideIcon, } from "lucide-react";
+  type LucideIcon,
+} from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import SearchableSelect from "@/components/ui/SearchableSelect";
 import type { AppDispatch, RootState } from "@/store/store";
 import {
   createVehicleManager,
+  updateVehicleManager,
   getVehicleMasterCodes,
   getVehicleMasterVariants,
   getVehicleManagerVendors,
@@ -23,7 +28,6 @@ import {
 } from "../../vehicleManagerSlice";
 import { AMENITIES_OPTIONS } from "../VehiclesMaster/vehicleMasterDropdown";
 import FormPageHeader from "@/components/ui/PageHeader/FormPageHeader";
-
 
 interface VehicleFormData {
   code: string;
@@ -85,9 +89,18 @@ const initialFormState: VehicleFormData = {
   variant: "",
 };
 
+// reg_date may arrive as an ISO string; the date input needs YYYY-MM-DD
+const toDateInput = (raw?: string | null) => {
+  if (!raw) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(raw)) return raw;
+  const d = new Date(raw);
+  if (Number.isNaN(d.getTime())) return "";
+  const p = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+};
+
 const inputClass = (theme: SectionTheme) =>
   `w-full py-2.5 pl-10 pr-3 text-sm text-gray-800 bg-white border rounded-lg outline-none transition placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100 ${theme.field}`;
-
 
 const Section: React.FC<{
   theme: SectionTheme;
@@ -111,6 +124,7 @@ const Section: React.FC<{
   </div>
 );
 
+// MUST live outside VehicleForm, otherwise inputs remount and lose focus
 const Field: React.FC<{
   label: string;
   Icon: LucideIcon;
@@ -135,8 +149,13 @@ const Field: React.FC<{
 /* ================================================================
    MAIN
 ================================================================ */
-const VehicleForm: React.FC = () => {
+const VehicleForm: React.FC<{
+  vehicle?: Record<string, any> | null;
+  onSuccess?: () => void;
+}> = ({ vehicle, onSuccess }) => {
   const dispatch = useDispatch<AppDispatch>();
+  const isEdit = !!vehicle?.id;
+
   const {
     vehicleMasterCodes,
     vehicleMasterVariants,
@@ -148,8 +167,29 @@ const VehicleForm: React.FC = () => {
     citiesLoading,
   } = useSelector((state: RootState) => state.vehicleManager);
 
-  const [formData, setFormData] = useState<VehicleFormData>(initialFormState);
-  const [selectedAmenities, setSelectedAmenities] = useState<string[]>([]);
+  const [formData, setFormData] = useState<VehicleFormData>(() =>
+    vehicle
+      ? {
+          ...initialFormState,
+          code: vehicle.code ?? "",
+          vendor: vehicle.vendor ?? "",
+          model: vehicle.model ?? "",
+          veh_no: vehicle.veh_no ?? "",
+          reg_date: toDateInput(vehicle.reg_date),
+          garage: vehicle.garage ?? "",
+          city: vehicle.city != null ? String(vehicle.city) : "",
+          variant: vehicle.variant ?? "",
+        }
+      : initialFormState,
+  );
+  const [selectedAmenities, setSelectedAmenities] = useState<string[]>(() =>
+    vehicle?.amenities
+      ? String(vehicle.amenities)
+          .split(",")
+          .map((a) => a.trim())
+          .filter(Boolean)
+      : [],
+  );
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isSuccess, setIsSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -158,6 +198,10 @@ const VehicleForm: React.FC = () => {
     dispatch(getVehicleMasterCodes());
     dispatch(getVehicleManagerVendors());
     dispatch(getAllCities());
+    if (isEdit && vehicle?.code) {
+      dispatch(getVehicleMasterVariants(vehicle.code));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch]);
 
   const setField = useCallback(
@@ -217,20 +261,35 @@ const VehicleForm: React.FC = () => {
         amenities: selectedAmenities.join(","),
       };
 
-      await dispatch(
-        createVehicleManager(payload as unknown as CreatePayload),
-      ).unwrap();
+      if (isEdit) {
+        await dispatch(
+          updateVehicleManager({
+            id: vehicle!.id,
+            data: payload as unknown as CreatePayload,
+          }),
+        ).unwrap();
 
-      setIsSuccess(true);
-      setFormData(initialFormState);
-      setSelectedAmenities([]);
-      setTimeout(() => setIsSuccess(false), 3000);
+        setIsSuccess(true);
+        setTimeout(() => {
+          setIsSuccess(false);
+          onSuccess?.(); // parent closes the form and refetches
+        }, 1200);
+      } else {
+        await dispatch(
+          createVehicleManager(payload as unknown as CreatePayload),
+        ).unwrap();
+
+        setIsSuccess(true);
+        setFormData(initialFormState);
+        setSelectedAmenities([]);
+        setTimeout(() => setIsSuccess(false), 3000);
+      }
     } catch (error: unknown) {
       const err = error as { message?: string } | string;
       setErrorMsg(
         typeof err === "string"
           ? err
-          : err?.message || "Something went wrong while creating vehicle",
+          : err?.message || "Something went wrong while saving vehicle",
       );
     } finally {
       setIsSubmitting(false);
@@ -245,7 +304,9 @@ const VehicleForm: React.FC = () => {
         <div className="fixed right-5 top-5 z-[9999] flex items-center gap-3 rounded-lg border border-green-200 bg-green-50 px-5 py-4 shadow-lg">
           <CheckCircle2 className="text-green-600" size={22} />
           <span className="font-semibold text-green-700">
-            Vehicle registered successfully!
+            {isEdit
+              ? "Vehicle updated successfully!"
+              : "Vehicle registered successfully!"}
           </span>
         </div>
       )}
@@ -258,7 +319,13 @@ const VehicleForm: React.FC = () => {
       )}
 
       <div className="sticky top-0 z-30">
-        <FormPageHeader title="Add Vehicles Manager Details" />
+        <FormPageHeader
+          title={
+            isEdit
+              ? "Edit Vehicles Manager Details"
+              : "Add Vehicles Manager Details"
+          }
+        />
       </div>
 
       <div className="w-full p-4 mx-auto my-6 bg-white rounded-lg shadow-xl md:p-6">
@@ -315,6 +382,15 @@ const VehicleForm: React.FC = () => {
                     </option>
                   );
                 })}
+                {!variantsLoading &&
+                  formData.variant &&
+                  !vehicleMasterVariants.some(
+                    (v) =>
+                      v.variant?.replace(/^"+|"+$/g, "").trim() ===
+                      formData.variant,
+                  ) && (
+                    <option value={formData.variant}>{formData.variant}</option>
+                  )}
               </select>
             </Field>
 
@@ -454,7 +530,11 @@ const VehicleForm: React.FC = () => {
               disabled={isSubmitting}
               className="px-6 py-2.5 text-sm font-medium text-white transition rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:cursor-not-allowed disabled:bg-emerald-300"
             >
-              {isSubmitting ? "Registering..." : "Register Vehicle"}
+              {isSubmitting
+                ? "Saving..."
+                : isEdit
+                  ? "Update Vehicle"
+                  : "Register Vehicle"}
             </button>
           </div>
         </form>

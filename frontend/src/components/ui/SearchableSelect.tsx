@@ -29,31 +29,23 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   const wrapperRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Close dropdown on outside click
   useEffect(() => {
-    const handleClickOutside = (e: MouseEvent) => {
-      if (
-        wrapperRef.current &&
-        !wrapperRef.current.contains(e.target as Node)
-      ) {
+    const onDown = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
         setIsOpen(false);
         setSearchText("");
       }
     };
-
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
   }, []);
 
-  // Focus search input when dropdown opens
   useEffect(() => {
-    if (isOpen && inputRef.current) {
-      inputRef.current.focus();
-    }
+    if (isOpen) inputRef.current?.focus();
   }, [isOpen]);
 
-  const filteredOptions = options.filter((opt) =>
-    opt.toLowerCase().includes(searchText.toLowerCase()),
+  const filtered = options.filter((o) =>
+    o.toLowerCase().includes(searchText.toLowerCase()),
   );
 
   const handleSelect = (opt: string) => {
@@ -62,68 +54,55 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
     setIsOpen(false);
   };
 
-  const handleToggle = () => {
-    if (!loading) setIsOpen((prev) => !prev);
-  };
-
   return (
     <div ref={wrapperRef} className="relative">
-      <label className="mb-1 block text-sm font-extrabold text-gray-700">
-        {label} {required && <span className="text-red-500">*</span>}
+      <label className="mb-1.5 block text-sm font-medium text-slate-600">
+        {label} {required && <span className="text-rose-500">*</span>}
       </label>
 
-      {/* Display box (click to open) */}
       <div
-        onClick={handleToggle}
-        className={`flex w-full items-center justify-between rounded-lg border border-gray-300 bg-white p-2.5 ${
-          loading ? "cursor-not-allowed bg-gray-100" : "cursor-pointer"
-        } ${isOpen ? "border-blue-500 ring-2 ring-blue-500" : ""}`}
+        onClick={() => !loading && setIsOpen((p) => !p)}
+        className={`flex min-h-[44px] w-full items-center justify-between rounded-lg border bg-white px-3 text-sm ${
+          isOpen ? "border-indigo-400" : "border-slate-200 hover:border-indigo-300"
+        } ${loading ? "cursor-not-allowed bg-slate-50" : "cursor-pointer"}`}
       >
-        <span className={value ? "text-gray-900" : "text-gray-400"}>
+        <span className={value ? "text-slate-800" : "text-slate-400"}>
           {loading ? "Loading..." : value || placeholder}
         </span>
-        <ChevronDown
-          size={16}
-          className={`text-gray-500 transition-transform ${isOpen ? "rotate-180" : ""}`}
-        />
+        <ChevronDown size={15} className="text-slate-400" />
       </div>
 
-      {/* Dropdown panel */}
       {isOpen && !loading && (
-        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border border-gray-300 bg-white shadow-lg">
-          {/* Search input */}
-          <div className="flex items-center gap-2 border-b border-gray-200 px-2.5">
-            <Search size={16} className="text-gray-400" />
+        <div className="absolute z-50 mt-1 w-full overflow-hidden rounded-lg border border-slate-200 bg-white shadow-lg">
+          <div className="flex items-center gap-2 border-b border-slate-100 px-3">
+            <Search size={14} className="text-slate-400" />
             <input
               ref={inputRef}
               type="text"
               value={searchText}
               onChange={(e) => setSearchText(e.target.value)}
               placeholder={`Search ${label}...`}
-              className="w-full py-2.5 text-sm focus:outline-none"
+              className="w-full py-2.5 text-sm outline-none placeholder:text-slate-400"
             />
           </div>
 
-          {/* Options list */}
-          <div className="max-h-48 overflow-y-auto">
-            {filteredOptions.length > 0 ? (
-              filteredOptions.map((opt, index) => (
+          <div className="max-h-48 overflow-y-auto p-1">
+            {filtered.length > 0 ? (
+              filtered.map((opt, i) => (
                 <div
-                  key={`${opt}-${index}`}
+                  key={`${opt}-${i}`}
                   onClick={() => handleSelect(opt)}
-                  className={`cursor-pointer px-3 py-2 text-sm hover:bg-blue-50 ${
+                  className={`cursor-pointer rounded-md px-3 py-2 text-sm ${
                     opt === value
-                      ? "bg-blue-100 font-semibold text-blue-700"
-                      : ""
+                      ? "bg-indigo-50 font-medium text-indigo-700"
+                      : "text-slate-700 hover:bg-slate-50"
                   }`}
                 >
                   {opt}
                 </div>
               ))
             ) : (
-              <div className="px-3 py-2 text-sm text-gray-400">
-                No match found
-              </div>
+              <div className="px-3 py-2 text-sm text-slate-400">No match found</div>
             )}
           </div>
         </div>

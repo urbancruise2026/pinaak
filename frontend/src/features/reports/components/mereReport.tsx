@@ -5,7 +5,15 @@ import { useState, useMemo, useEffect } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import { fetchMonthlyEnquiry } from "../monthlyReportSlice";
 import { RootState, AppDispatch } from "@/store/store";
-import { Eye, X, ChevronDown } from "lucide-react";
+import {
+  Eye,
+  X,
+  CalendarDays,
+  Users,
+  Target,
+  Sigma,
+  BarChart3,
+} from "lucide-react";
 import Image from "next/image";
 import employee from "@/assets/images/monthyview.png";
 import { AllRegionZoneCityFilter } from "@/components/ui/AllRegionZoneCityFilter";
@@ -76,13 +84,50 @@ const getMonthsData = (year: number) => {
   });
 };
 
-function getMonthColorClass(monthName: string): string {
-  if (["APR", "MAY", "JUN"].includes(monthName)) return "bg-green-300";
-  if (["JUL", "AUG", "SEP", "OCT"].includes(monthName)) return "bg-cyan-300";
-  if (["NOV", "DEC", "JAN"].includes(monthName)) return "bg-green-300";
-  if (["FEB", "MAR"].includes(monthName)) return "bg-cyan-300";
-  return "";
-}
+/* ─── Month colours ─────────────────────────────────────────────────────────
+   Every month has its own pastel chip (used for the name, TOTAL and AVG cells).
+   Months that have no enquiries yet fall back to a quiet grey chip.
+   Full class names are written out so Tailwind never purges them.          */
+type MonthTheme = { chip: string; dot: string };
+
+const MONTH_THEME: Record<string, MonthTheme> = {
+  APR: { chip: "bg-green-100 text-green-700", dot: "bg-green-500" },
+  MAY: { chip: "bg-blue-100 text-blue-700", dot: "bg-blue-500" },
+  JUN: { chip: "bg-orange-100 text-orange-700", dot: "bg-orange-500" },
+  JUL: { chip: "bg-purple-100 text-purple-700", dot: "bg-purple-500" },
+  AUG: { chip: "bg-rose-100 text-rose-700", dot: "bg-rose-500" },
+  SEP: { chip: "bg-teal-100 text-teal-700", dot: "bg-teal-500" },
+  OCT: { chip: "bg-indigo-100 text-indigo-700", dot: "bg-indigo-500" },
+  NOV: { chip: "bg-sky-100 text-sky-700", dot: "bg-sky-500" },
+  DEC: { chip: "bg-violet-100 text-violet-700", dot: "bg-violet-500" },
+  JAN: { chip: "bg-red-100 text-red-700", dot: "bg-red-500" },
+  FEB: { chip: "bg-cyan-100 text-cyan-700", dot: "bg-cyan-500" },
+  MAR: { chip: "bg-fuchsia-100 text-fuchsia-700", dot: "bg-fuchsia-500" },
+};
+
+const MUTED_THEME: MonthTheme = {
+  chip: "bg-slate-100 text-slate-400",
+  dot: "bg-slate-300",
+};
+
+/* ─── Day-cell colours (heat map) ───────────────────────────────────────────
+   Same rules as before: Sundays are shaded, 50+ is highlighted in red.     */
+const HIGH_VALUE = 50;
+
+const dayCellClass = (value: number, sunday: boolean): string => {
+  const high = value >= HIGH_VALUE;
+
+  if (sunday) {
+    if (high) return "bg-amber-300 text-rose-700 font-black ring-1 ring-amber-500";
+    if (value > 0) return "bg-amber-300 text-amber-950 font-black ring-1 ring-amber-500";
+    return "bg-amber-100 text-amber-500 font-bold ring-1 ring-amber-300";
+  }
+  if (value <= 0) return "bg-slate-50 text-slate-300";
+  if (high) return "bg-rose-100 text-rose-700 font-black";
+  if (value >= 30) return "bg-indigo-100 text-slate-800";
+  if (value >= 15) return "bg-emerald-100 text-slate-800";
+  return "bg-sky-100 text-slate-800";
+};
 
 const isSunday = (year: number, monthIndex: number, day: number): boolean => {
   return new Date(year, monthIndex, day).getDay() === 0;
@@ -157,8 +202,8 @@ export default function MonthlyEnquiryReport() {
     return (
       <div className="flex items-center justify-center h-64">
         <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-orange-600 mx-auto mb-4" />
-          <p className="text-gray-600 font-medium">Loading report...</p>
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4" />
+          <p className="text-slate-600 font-medium">Loading report...</p>
         </div>
       </div>
     );
@@ -167,11 +212,11 @@ export default function MonthlyEnquiryReport() {
   if (error) {
     return (
       <div className="p-4">
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4 text-center">
+        <div className="bg-red-50 border border-red-200 rounded-2xl p-4 text-center">
           <p className="text-red-600 font-semibold">❌ Error: {error}</p>
           <button
-            onClick={() => dispatch(fetchMonthlyEnquiry({year:Number(year)}))}
-            className="mt-3 px-4 py-2 bg-red-600 text-white rounded hover:bg-red-700"
+            onClick={() => dispatch(fetchMonthlyEnquiry({ year: Number(year) }))}
+            className="mt-3 px-4 py-2 bg-red-600 text-white rounded-full hover:bg-red-700"
           >
             Retry
           </button>
@@ -181,45 +226,71 @@ export default function MonthlyEnquiryReport() {
   }
 
   return (
-    <div className="p-4">
-      <style>{`
-  .high-value {
-    display: inline-block;
-    color: #be123c;
-    font-weight: 900;
-    font-family: "Arial Black", Arial, sans-serif;
-  }
-
-  .sunday-cell {
-    color: #000000;
-    font-weight: 900;
-  }
-
-  .sunday-high {
-    color: #be123c;
-    font-weight: 900;
-    font-family: "Arial Black", Arial, sans-serif;
-  }
-`}</style>
-
+    <div className="p-3 sm:p-4">
       {/* ── Header ── */}
-      <div className="sticky top-0 z-10 bg-orange-100 p-3 rounded-md mb-4 border border-orange-200 shadow-sm">
-        <div className="flex justify-between items-center">
-          <div className="pl-4 border-l-8 border-orange-600 bg-white px-3 rounded-md shadow-sm">
-            <h2 className="text-4xl font-bold text-left py-4 text-orange-700 p-2">
-              📊 Monthly Enquiry Report – {year}
-            </h2>
-          </div>
+      <div className="z-10 mb-4 rounded-3xl border border-indigo-100 bg-gradient-to-r from-indigo-50 via-white to-violet-50 p-3 shadow-[0_8px_30px_rgba(79,70,229,0.10)] sm:p-4 md:sticky md:top-0">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-center">
+          {/* Title */}
+          <div className="flex min-w-0 items-center gap-3 sm:gap-4 xl:flex-1">
+            <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-gradient-to-br from-indigo-500 to-violet-500 shadow-lg shadow-indigo-300/50 sm:h-16 sm:w-16">
+              <CalendarDays
+                className="h-6 w-6 text-white sm:h-8 sm:w-8"
+                aria-hidden="true"
+              />
+            </div>
 
-          <div className="flex items-center gap-4">
+            <div className="min-w-0 flex-1">
+              <h2 className="text-xl font-extrabold leading-tight text-slate-900 sm:text-2xl">
+                Monthly Enquiry Report – {year}
+              </h2>
+              <p className="mt-0.5 text-sm text-slate-500">
+                Track your monthly enquiry performance at a glance
+              </p>
+            </div>
+
             <button
               onClick={() => setShowImageModal(true)}
-              className="p-1 rounded-full hover:bg-orange-50 border-2 border-orange-400 shadow-sm transition-colors"
+              className="shrink-0 rounded-full border-2 border-indigo-300 bg-white p-1.5 shadow-sm transition-colors hover:bg-indigo-50"
               title="View Chart"
+              aria-label="View Chart"
             >
-              <Eye className="w-6 h-6 text-orange-600" />
+              <Eye className="h-5 w-5 text-indigo-600 sm:h-6 sm:w-6" />
             </button>
+          </div>
 
+          {/* Stat cards */}
+          <div className="grid grid-cols-2 gap-3 xl:w-[430px] xl:shrink-0">
+            <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-violet-100 bg-white/80 p-3 shadow-sm">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-100 sm:h-12 sm:w-12">
+                <Users className="h-5 w-5 text-violet-600 sm:h-6 sm:w-6" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium text-slate-500 sm:text-sm">
+                  Total Enquiries
+                </p>
+                <p className="text-2xl font-extrabold leading-tight text-slate-900 sm:text-3xl">
+                  {grandTotal}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex min-w-0 items-center gap-3 rounded-2xl border border-emerald-100 bg-emerald-50/80 p-3 shadow-sm">
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 sm:h-12 sm:w-12">
+                <Target className="h-5 w-5 text-emerald-600 sm:h-6 sm:w-6" />
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-xs font-medium text-slate-500 sm:text-sm">
+                  Monthly Average
+                </p>
+                <p className="text-2xl font-extrabold leading-tight text-slate-900 sm:text-3xl">
+                  {grandAvg}
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* Filters – Region / Zone on the first row, City / Year on the second */}
+          <div className="xl:w-[380px] xl:shrink-0 [&>div>div]:!max-w-none md:[&>div>div]:!grid-cols-4 xl:[&>div>div]:!grid-cols-2 [&_select]:!h-10 [&_select]:!rounded-full [&_select]:!border-slate-200 [&_select]:!bg-white [&_select]:!text-slate-700 [&_select]:!shadow-sm [&_select]:hover:!border-indigo-300 [&_select]:focus:!border-indigo-400 [&_select]:focus:!ring-indigo-200">
             <AllRegionZoneCityFilter
               selectedRegion={selectedRegion}
               selectedZone={selectedZone}
@@ -229,175 +300,201 @@ export default function MonthlyEnquiryReport() {
               onZoneChange={setSelectedZone}
               onCityChange={setSelectedCity}
               onYearChange={setYear}
-              layout="row"
+              layout="grid"
             />
           </div>
         </div>
-
-        {/* Image Modal */}
-        {showImageModal && (
-          <div
-            className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
-            onClick={() => setShowImageModal(false)}
-          >
-            <div
-              className="relative bg-white rounded-2xl shadow-2xl p-4 max-w-4xl w-full mx-4"
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Modal Header */}
-              <div className="flex justify-between items-center mb-3 px-1">
-                <h3 className="text-lg font-bold text-orange-700">
-                  Employee Performance TS – {year}
-                </h3>
-                <button
-                  onClick={() => setShowImageModal(false)}
-                  className="w-10 h-10 flex items-center justify-center rounded-full bg-[#EE0000] hover:bg-red-700 transition-colors"
-                >
-                  <X className="w-6 h-6 text-white" strokeWidth={3} />
-                </button>
-              </div>
-
-              {/* Image */}
-              <Image
-                src={employee}
-                alt="Performance Chart"
-                width={900}
-                height={600}
-                priority
-                className="w-full rounded-xl object-contain max-h-[70vh]"
-              />
-            </div>
-          </div>
-        )}
       </div>
+
+      {/* ── Image Modal ── */}
+      {showImageModal && (
+        <div
+          className="fixed inset-0 z-[999] flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setShowImageModal(false)}
+        >
+          <div
+            className="relative mx-4 w-full max-w-4xl rounded-2xl bg-white p-4 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Modal Header */}
+            <div className="mb-3 flex items-center justify-between px-1">
+              <h3 className="text-lg font-bold text-indigo-700">
+                Employee Performance TS – {year}
+              </h3>
+              <button
+                onClick={() => setShowImageModal(false)}
+                aria-label="Close"
+                className="flex h-10 w-10 items-center justify-center rounded-full bg-[#EE0000] transition-colors hover:bg-red-700"
+              >
+                <X className="h-6 w-6 text-white" strokeWidth={3} />
+              </button>
+            </div>
+
+            {/* Image */}
+            <Image
+              src={employee}
+              alt="Performance Chart"
+              width={900}
+              height={600}
+              priority
+              className="max-h-[70vh] w-full rounded-xl object-contain"
+            />
+          </div>
+        </div>
+      )}
 
       {/* ── No Data Warning ── */}
       {(!apiData || apiData.length === 0) && !loading && (
-        <div className="mb-4 bg-yellow-50 border border-yellow-200 rounded-lg p-3 text-center text-yellow-700 font-medium">
+        <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-center font-medium text-amber-700">
           ⚠️ No data found for year {year}
         </div>
       )}
 
       {/* ── Table ── */}
-      <div className="overflow-x-auto border border-gray-600 rounded-lg shadow-sm">
-        <table className="border-collapse w-full text-center font-bold">
-          <thead className="bg-green-950 text-white text-2xl">
-            <tr>
-              <th className="border border-white p-3 font-bold text-xl">
-                MONTH
-              </th>
-              {[...Array(31)].map((_, i) => (
-                <th
-                  key={i}
-                  className="border border-white p-2 font-bold text-lg"
-                >
-                  {i + 1}
+      <div className="rounded-3xl border border-slate-100 bg-white p-2 shadow-[0_8px_30px_rgba(15,23,42,0.06)] sm:p-3">
+        <div className="overflow-x-auto rounded-2xl">
+          <table
+            className="w-full min-w-[1250px] border-separate text-center"
+            style={{ borderSpacing: 3 }}
+          >
+            <thead>
+              <tr className="text-white">
+                <th className="sticky left-0 z-20 rounded-lg bg-slate-900 px-3 py-2.5 text-left text-sm font-extrabold">
+                  <span className="inline-flex items-center gap-2">
+                    <CalendarDays className="h-4 w-4" aria-hidden="true" />
+                    MONTH
+                  </span>
                 </th>
-              ))}
-              <th className="border border-white p-3 font-bold text-white text-xl">
-                TOTAL
-              </th>
-              <th className="border border-white p-3 font-bold text-white text-xl">
-                AVG
-              </th>
-            </tr>
-          </thead>
-
-          <tbody>
-            {reportData.map((month, idx) => {
-              const monthColor = getMonthColorClass(month.name);
-              const monthIndex = MONTH_NAME_TO_INDEX[month.name];
-
-              return (
-                <tr key={idx}>
-                  <td
-                    className={`border border-gray-600 p-2 font-bold text-xl ${monthColor}`}
+                {[...Array(31)].map((_, i) => (
+                  <th
+                    key={i}
+                    className="rounded-md bg-slate-900 px-0 py-2.5 text-sm font-bold"
                   >
-                    {month.name}
-                  </td>
+                    {i + 1}
+                  </th>
+                ))}
+                <th className="rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-extrabold">
+                  <span className="inline-flex items-center gap-1.5">
+                    <Sigma className="h-4 w-4" aria-hidden="true" />
+                    TOTAL
+                  </span>
+                </th>
+                <th className="rounded-lg bg-slate-900 px-3 py-2.5 text-sm font-extrabold">
+                  <span className="inline-flex items-center gap-1.5">
+                    <BarChart3 className="h-4 w-4" aria-hidden="true" />
+                    AVG
+                  </span>
+                </th>
+              </tr>
+            </thead>
 
-                  {month.dailyData.map((value: number, i: number) => {
-                    const dayNumber = i + 1;
-                    const sunday = isSunday(
-                      Number(year),
-                      monthIndex,
-                      dayNumber,
-                    );
-                    const highValue = value >= 50;
-
-                    const cellBg = sunday ? "!bg-gray-300" : "";
-
-                    const textClass =
-                      highValue && sunday
-                        ? "sunday-high"
-                        : highValue
-                          ? "high-value"
-                          : sunday
-                            ? "sunday-cell"
-                            : "";
-
-                    return (
-                      <td
-                        key={i}
-                        className={`border border-gray-600 p-1 text-lg ${monthColor} ${cellBg}`}
-                      >
-                        {value > 0 ? (
-                          <span className={textClass}>{value}</span>
-                        ) : (
-                          ""
-                        )}
-                      </td>
-                    );
-                  })}
-
-                  {[...Array(31 - month.days)].map((_, i) => (
-                    <td
-                      key={`empty-${i}`}
-                      className={`border border-gray-600 p-1 ${monthColor}`}
-                    />
-                  ))}
-
-                  <td className="border border-gray-600 p-2 bg-amber-200 font-bold text-green-800 text-xl">
-                    {month.total}
-                  </td>
-                  <td className="border border-gray-600 p-2 bg-amber-200 font-bold text-red-800 text-xl">
-                    {month.avg > 0 ? month.avg : ""}
-                  </td>
-                </tr>
-              );
-            })}
-
-            {/* ── Grand Total Row ── */}
-            <tr className="bg-green-800 text-white font-bold text-lg">
-              <td className="border border-white p-2 text-xl">TOTAL</td>
-
-              {[...Array(31)].map((_, dateIndex) => {
-                const dailyTotal = reportData.reduce((sum, month) => {
-                  if (dateIndex < month.days) {
-                    return sum + (month.dailyData[dateIndex] || 0);
-                  }
-                  return sum;
-                }, 0);
+            <tbody>
+              {reportData.map((month, idx) => {
+                const theme =
+                  month.total > 0
+                    ? (MONTH_THEME[month.name] ?? MUTED_THEME)
+                    : MUTED_THEME;
+                const monthIndex = MONTH_NAME_TO_INDEX[month.name];
 
                 return (
-                  <td
-                    key={dateIndex}
-                    className="border border-white p-2 text-lg"
-                  >
-                    {dailyTotal > 0 ? dailyTotal : ""}
-                  </td>
+                  <tr key={idx}>
+                    <td
+                      className={`sticky left-0 z-10 rounded-lg px-3 py-1.5 text-left text-sm font-extrabold ${theme.chip}`}
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <i
+                          aria-hidden="true"
+                          className={`inline-block h-2 w-2 rounded-full ${theme.dot}`}
+                        />
+                        {month.name}
+                      </span>
+                    </td>
+
+                    {month.dailyData.map((value: number, i: number) => {
+                      const dayNumber = i + 1;
+                      const sunday = isSunday(
+                        Number(year),
+                        monthIndex,
+                        dayNumber,
+                      );
+
+                      return (
+                        <td
+                          key={i}
+                          title={
+                            value > 0
+                              ? `${month.name} ${dayNumber}: ${value}`
+                              : undefined
+                          }
+                          className={`rounded-md px-0 py-1.5 text-[13px] font-semibold ${dayCellClass(value, sunday)}`}
+                        >
+                          {value > 0 ? value : "-"}
+                        </td>
+                      );
+                    })}
+
+                    {[...Array(31 - month.days)].map((_, i) => (
+                      <td
+                        key={`empty-${i}`}
+                        className="rounded-md bg-slate-50/60 px-0 py-1.5"
+                      />
+                    ))}
+
+                    <td
+                      className={`rounded-lg px-2 py-1.5 text-sm font-extrabold ${theme.chip}`}
+                    >
+                      {month.total}
+                    </td>
+                    <td
+                      className={`rounded-lg px-2 py-1.5 text-sm font-extrabold ${theme.chip}`}
+                    >
+                      {month.avg}
+                    </td>
+                  </tr>
                 );
               })}
 
-              <td className="border border-white p-2 text-2xl font-extrabold text-white">
-                {grandTotal}
-              </td>
-              <td className="border border-gray-600 p-2 text-2xl font-extrabold text-white">
-                {grandAvg > 0 ? grandAvg : ""}
-              </td>
-            </tr>
-          </tbody>
-        </table>
+              {/* ── Grand Total Row ── */}
+              <tr className="text-white">
+                <td className="sticky left-0 z-10 rounded-lg bg-slate-900 px-3 py-2.5 text-left text-sm font-extrabold">
+                  <span className="inline-flex items-center gap-2">
+                    <Sigma className="h-4 w-4" aria-hidden="true" />
+                    TOTAL
+                  </span>
+                </td>
+
+                {[...Array(31)].map((_, dateIndex) => {
+                  const dailyTotal = reportData.reduce((sum, month) => {
+                    if (dateIndex < month.days) {
+                      return sum + (month.dailyData[dateIndex] || 0);
+                    }
+                    return sum;
+                  }, 0);
+
+                  return (
+                    <td
+                      key={dateIndex}
+                      className="rounded-md bg-slate-800 px-0 py-2.5 text-[13px] font-bold"
+                    >
+                      {dailyTotal > 0 ? (
+                        dailyTotal
+                      ) : (
+                        <span className="text-slate-500">-</span>
+                      )}
+                    </td>
+                  );
+                })}
+
+                <td className="rounded-lg bg-blue-600 px-2 py-2.5 text-lg font-extrabold">
+                  {grandTotal}
+                </td>
+                <td className="rounded-lg bg-blue-400 px-2 py-2.5 text-lg font-extrabold">
+                  {grandAvg}
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </div>
   );

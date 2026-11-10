@@ -13,6 +13,10 @@ const MAKE_CODES = {
   mahindra: "MH", // confirm karo
   audi: "AU", // confirm karo
   maruti: "MR", // confirm karo
+<<<<<<< HEAD
+=======
+  "volvo eicher": "VE",
+>>>>>>> 018e14f809b643ec446fe87f307acb18c7a522d7
 };
 
 const MODEL_CODES = {
@@ -52,13 +56,41 @@ const MODEL_CODES = {
   sonet: "SON",
   seltos: "SEL",
   carens: "CAR",
+<<<<<<< HEAD
   carnival: "CRN",
+=======
+   carnival: "CRN",
+  "carnival 6-crn-l": "CRN-L",
+  "carnival 6-crn-l+": "CRN-L+",
+  "carnival 6-crn-p": "CRN-P",
+>>>>>>> 018e14f809b643ec446fe87f307acb18c7a522d7
 
   // Buses
   "lux bus": "LXB",
   "mini bus": "MNB",
   traveller: "TRV",
   urbania: "URB",
+<<<<<<< HEAD
+=======
+  // Volvo
+  "lux bus": "LUX BUS",
+  "vo96": "VO96",
+  "vo94": "VO94",
+  "vo96 w": "VO96-W",
+  "vo94 w": "VO94-W",
+  "ss-v96": "SS-V96",
+  "ss-v94": "SS-V94",
+  "ss-v96 w": "SS-V96 W",
+  "ss-v94 w": "SS-V94 W",
+  "sl vo94": "SL-VO94",
+  "sl vo96": "SL-VO96",
+  "sl vo94 w": "SL-VO94-W",
+  "sl vo96 w": "SL-VO96-W",
+  "vo96slx": "VO96SLX",
+  "vo96slx w": "VO96SLX-W",
+  "slp": "SLP"
+  
+>>>>>>> 018e14f809b643ec446fe87f307acb18c7a522d7
 };
 
 const getMakeCode = (make) => {
@@ -103,5 +135,9 @@ export const generateVehicleCode = (seat, category, config, make, model) => {
   const modelCode = getModelCode(model);
 
   return `${seat}-${categoryCode}-${config}-${makeCode}-${modelCode}`;
+<<<<<<< HEAD
 };
 
+=======
+};
+>>>>>>> 018e14f809b643ec446fe87f307acb18c7a522d7

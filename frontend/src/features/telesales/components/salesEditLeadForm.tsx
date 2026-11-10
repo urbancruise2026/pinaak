@@ -42,6 +42,7 @@ import {
   TRIP_TYPE_OPTIONS,
   CATEGORY_OPTIONS,
   DEFAULT_VALUES,
+  DUMMY_VEHICLE_OPTIONS
 } from "../../leads/types/Editleads/editleaddata";
 import {
   leadSchema,
@@ -88,6 +89,8 @@ const EditLeadForm: React.FC<{
     (state: RootState) => state.stateCity,
   );
   const { currentUser } = useSelector((state: RootState) => state.user);
+  // TODO: replace with useSelector(...) from the new slice once the API exists
+const vehicleOptions = DUMMY_VEHICLE_OPTIONS;
 
   const {
     register,
@@ -1498,6 +1501,46 @@ const EditLeadForm: React.FC<{
                     />
                   </div>
                 </div>
+                <div className="w-full md:w-[20%]">
+  <label className="block text-md font-extrabold text-gray-700 mb-1">
+    Vehicle
+  </label>
+  <div className="relative">
+    <select
+      {...register("vehicle_option")}
+      className="w-full py-2 border bg-white px-12 border-gray-300 rounded-md"
+    >
+      <option value="">Select Vehicle</option>
+      {vehicleOptions.map((v) => (
+        <option key={v.id} value={v.label}>
+          {v.label}
+        </option>
+      ))}
+    </select>
+    <FileText
+      className="absolute left-3 top-1/2 -translate-y-1/2 text-green-600"
+      size={20}
+    />
+  </div>
+</div>
+
+<div className="w-full md:w-[20%]">
+  <label className="block text-md font-extrabold text-gray-700 mb-1">
+    BA Rated
+  </label>
+  <div className="relative">
+    <input
+      type="text"
+      {...register("ba_rated")}
+      className="w-full py-2 pl-10 pr-3 border border-gray-300 rounded-md"
+      placeholder="Enter BA Rated"
+    />
+    <FileText
+      className="absolute text-purple-800 -translate-y-1/2 left-3 top-1/2"
+      size={20}
+    />
+  </div>
+</div>
               </div>
             </div>
 

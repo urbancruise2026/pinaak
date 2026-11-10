@@ -621,6 +621,8 @@ function BoardSection({
                     </th>
                   );
                 })}
+                <th className={`border ${t.borderStrong} p-3 ${headerClass}`}>Overflow</th>
+<th className={`border ${t.borderStrong} p-3 ${headerClass}`}>Max Limit</th>
                 <th
                   className={`border ${t.borderStrong} p-3 w-32 ${headerClass}`}
                 >
@@ -663,6 +665,20 @@ function BoardSection({
                       </td>
                     );
                   })}
+                  <td className={`border ${t.borderSoft} p-3 text-center`}>
+  {e.overflow ? (
+    <>
+      <span className="font-bold text-slate-700">{e.overflow}</span>
+      <span className="font-semibold"> – {e.advisorName}</span>
+      <span className="text-red-500 font-bold"> ({e.overflowLead ?? 0})</span>
+    </>
+  ) : (
+    "-"
+  )}
+</td>
+<td className={`border ${t.borderSoft} p-3 text-center font-semibold`}>
+  {e.maxLimit ?? "-"}
+</td>
                   <td className={`border ${t.borderSoft} p-3`}>
                     <div className="flex items-center justify-center gap-2">
                       <button
@@ -711,6 +727,8 @@ function BoardSection({
                   );
                 })}
                 <td className="border border-slate-300 p-3 font-bold bg-white text-slate-800"></td>
+                <td className="border border-slate-300 p-3 bg-white"></td>
+<td className="border border-slate-300 p-3 bg-white"></td>
               </tr>
             </tfoot>
           </table>

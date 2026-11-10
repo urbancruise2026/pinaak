@@ -154,6 +154,8 @@ export interface LeadRecord {
   advisor_id?: string | number;
   followup_date?: string | null;
   followup_remark?: string | null;
+  vehicle_option?: string;
+  ba_rated?: string;
 }
 export type UserRole =
   | "user"

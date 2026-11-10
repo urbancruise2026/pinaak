@@ -11,6 +11,7 @@ import {
   getVehicleMasterAmenitiesModel,
   getAllCitiesModel,
   updateVehicleManagerStatusModel,
+  updateVehicleManagerModel
 } from "./vehicleManager.model.js";
 import { calculateVehicleAging } from "./vehicleManager.service.js";
 
@@ -67,6 +68,60 @@ const createVehicleManager = asyncHandler(async (req, res) => {
         result,
         "Vehicle manager entry created successfully",
       ),
+    );
+});
+
+const updateVehicleManager = asyncHandler(async (req, res) => {
+  const { id } = req.params;
+  const {
+    code,
+    vendor,
+    model,
+    variant,
+    veh_no,
+    garage,
+    city,
+    reg_date,
+    amenities,
+  } = req.body;
+
+  if (!code || !veh_no) {
+    throw new ApiError(400, "code and veh_no are required");
+  }
+
+  const current = await getVehicleManagerById(id);
+  if (!current) {
+    throw new ApiError(404, "Vehicle manager entry not found");
+  }
+
+  // veh_no must stay unique, ignoring this same row
+  const duplicate = await getVehicleManagerByVehNo(veh_no);
+  if (duplicate && Number(duplicate.id) !== Number(id)) {
+    throw new ApiError(
+      409,
+      "Vehicle manager entry already exists for this vehicle number",
+    );
+  }
+
+  const aging = calculateVehicleAging(reg_date);
+
+  const result = await updateVehicleManagerModel(id, {
+    code,
+    vendor,
+    model,
+    variant,
+    veh_no,
+    garage,
+    city,
+    reg_date,
+    aging,
+    amenities,
+  });
+
+  return res
+    .status(200)
+    .json(
+      new ApiResponse(200, result, "Vehicle manager entry updated successfully"),
     );
 });
 
@@ -205,4 +260,5 @@ export {
   getVehicleManagerVendors,
   getAllCitiesController,
   updateVehicleManagerStatus,
+  updateVehicleManager
 };

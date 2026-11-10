@@ -211,7 +211,7 @@ export const getAllVehiclesModel = async ({
     }
 
     // ===== PAGINATION =====
-    query += ` ORDER BY id ASC LIMIT ? OFFSET ?`;
+    query += ` ORDER BY id DESC LIMIT ? OFFSET ?`;
 
     params.push(Number(limit), Number(offset));
 
@@ -243,6 +243,60 @@ export const getSeatOptionsModel = async () => {
     return rows.map((r) => r.seat);
   } catch (error) {
     console.error("getSeatOptionsModel error:", error);
+    throw error;
+  }
+};
+
+export const updateVehicleModel = async (id, payload) => {
+  try {
+    const {
+      code,
+      seat,
+      config,
+      category,
+      make,
+      model,
+      variant,
+      description,
+      amenities,
+    } = payload;
+
+    const [result] = await pool.execute(
+      `UPDATE vehicle_master
+       SET code = ?, seat = ?, config = ?, category = ?, make = ?,
+           model = ?, variant = ?, description = ?, amenities = ?
+       WHERE id = ?`,
+      [
+        code,
+        seat,
+        config,
+        category,
+        make,
+        model,
+        JSON.stringify(variant), // same format as create
+        description,
+        amenities,
+        id,
+      ],
+    );
+
+    if (result.affectedRows === 0) return null;
+    return await getVehicleById(id);
+  } catch (error) {
+    console.error("updateVehicleModel error:", error);
+    throw error;
+  }
+};
+
+export const deleteVehicleModel = async (id) => {
+  try {
+    const [result] = await pool.execute(
+      `DELETE FROM vehicle_master WHERE id = ?`,
+      [id],
+    );
+    return result.affectedRows > 0;
+  } catch (error) {
+    console.error("deleteVehicleModel error:", error);
     throw error;
   }
 };

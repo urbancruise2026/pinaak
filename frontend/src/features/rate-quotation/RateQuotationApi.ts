@@ -3,7 +3,7 @@ import axiosInstance from "@/lib/axioInstance";
 import type {
   ChargeTemplate,
   NoteTemplate,
-} from "./components/rateQuotationFormComponents/types";
+} from "../rate-quotation/components/rateQuotationFormComponents/types";
 
 export type { ChargeTemplate, NoteTemplate };
 

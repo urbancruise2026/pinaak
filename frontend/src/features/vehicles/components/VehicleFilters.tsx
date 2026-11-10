@@ -49,29 +49,25 @@ const VehicleFilters: React.FC<VehicleFiltersProps> = ({
   };
 
   return (
-    <div className="relative z-[100] flex flex-wrap items-center gap-2 overflow-visible">
-      {" "}
-      {/* Category */}
+    <div className="flex flex-wrap items-center gap-2">
       <MultiSelectFilter
         title="Category"
         options={categoryOptions}
         selected={selectedCategories}
-        onChange={(values) => handleChange(setSelectedCategories, values)}
+        onChange={(v) => handleChange(setSelectedCategories, v)}
       />
-      {/* Seater */}
       <MultiSelectFilter
         title="Seater"
         options={seatDropdownOptions}
         selected={selectedSeats}
         loading={seatOptionsLoading}
-        onChange={(values) => handleChange(setSelectedSeats, values)}
+        onChange={(v) => handleChange(setSelectedSeats, v)}
       />
-      {/* Variant */}
       <MultiSelectFilter
         title="Variant"
         options={variantOptions}
         selected={selectedVariants}
-        onChange={(values) => handleChange(setSelectedVariants, values)}
+        onChange={(v) => handleChange(setSelectedVariants, v)}
       />
     </div>
   );

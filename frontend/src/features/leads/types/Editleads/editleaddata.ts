@@ -95,6 +95,12 @@ const PAX_OPTIONS = [
   "51-60",
   "60+",
 ] as const;
+// TODO: remove when the real API is ready (options will come from backend)
+export const DUMMY_VEHICLE_OPTIONS = [
+  { id: 1, label: "Dummy Vehicle A" },
+  { id: 2, label: "Dummy Vehicle B" },
+  { id: 3, label: "Dummy Vehicle C" },
+];
 
 export const DEFAULT_VALUES = {
   smallbaggage: 0,
@@ -105,4 +111,6 @@ export const DEFAULT_VALUES = {
   petsNumber: 0,
   days: 1,
   followUps: [{ followup_date: "", followup_remark: "" }],
+  vehicle_option: "",
+  ba_rated: "",
 };
