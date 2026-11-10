@@ -1,5 +1,10 @@
 import { hrmsPool, pool } from "../../config/mySqlDB.js";
 
+const toIntOrNull = (v) => {
+  if (v === "" || v === null || v === undefined) return null;
+  const n = Number(v);
+  return Number.isFinite(n) ? n : null;
+};
 export const findAdvisorsShiftTimingByZoneIds = async (zoneIds) => {
   try {
     if (!zoneIds || zoneIds.length === 0) {
@@ -74,6 +79,8 @@ export const createRuleEntry = async ({
   shiftTiming,
   lead,
   overflow,
+  overflowLead,
+  maxLimit,
 }) => {
   const connection = await pool.getConnection();
 
@@ -164,7 +171,7 @@ export const getRuleEntries = async ({ advisorIds } = {}) => {
 };
 export const updateRuleEntry = async (
   id,
-  { type, months, monthLeads, advisorId, shiftTiming, lead, overflow },
+  { type, months, monthLeads, advisorId, shiftTiming, lead, overflow, overflowLead, maxLimit },
 ) => {
   const [result] = await pool.query(
     `UPDATE rule_entries
