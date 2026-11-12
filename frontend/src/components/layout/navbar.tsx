@@ -401,27 +401,147 @@ const DASHBOARD_ROUTES: Record<string, string> = {
 /* Design tokens + small UI building blocks                            */
 /* ------------------------------------------------------------------ */
 
+type Tone =
+  | "orange"
+  | "blue"
+  | "violet"
+  | "emerald"
+  | "rose"
+  | "teal"
+  | "indigo"
+  | "sky";
+
+// Full class names are written out so Tailwind can detect them.
+const TONES: Record<
+  Tone,
+  {
+    idle: string;
+    open: string;
+    active: string;
+    icon: string;
+    panel: string;
+    title: string;
+    item: string;
+    itemActive: string;
+    check: string;
+  }
+> = {
+  orange: {
+    idle: "bg-orange-100 text-orange-800 ring-orange-200 hover:bg-orange-200 hover:ring-orange-300",
+    open: "bg-orange-200 text-orange-900 ring-orange-300",
+    active: "bg-gradient-to-r from-orange-500 to-amber-500 text-white ring-orange-600 shadow-md shadow-orange-500/30",
+    icon: "text-orange-600",
+    panel: "border-orange-200 border-t-orange-500 bg-orange-50",
+    title: "text-orange-600",
+    item: "bg-orange-100/70 text-orange-900 border-transparent hover:border-orange-400 hover:bg-orange-200",
+    itemActive: "bg-orange-200 text-orange-900 border-orange-500",
+    check: "text-orange-600",
+  },
+  blue: {
+    idle: "bg-blue-100 text-blue-800 ring-blue-200 hover:bg-blue-200 hover:ring-blue-300",
+    open: "bg-blue-200 text-blue-900 ring-blue-300",
+    active: "bg-gradient-to-r from-blue-500 to-sky-500 text-white ring-blue-600 shadow-md shadow-blue-500/30",
+    icon: "text-blue-600",
+    panel: "border-blue-200 border-t-blue-500 bg-blue-50",
+    title: "text-blue-600",
+    item: "bg-blue-100/70 text-blue-900 border-transparent hover:border-blue-400 hover:bg-blue-200",
+    itemActive: "bg-blue-200 text-blue-900 border-blue-500",
+    check: "text-blue-600",
+  },
+  violet: {
+    idle: "bg-violet-100 text-violet-800 ring-violet-200 hover:bg-violet-200 hover:ring-violet-300",
+    open: "bg-violet-200 text-violet-900 ring-violet-300",
+    active: "bg-gradient-to-r from-violet-500 to-purple-500 text-white ring-violet-600 shadow-md shadow-violet-500/30",
+    icon: "text-violet-600",
+    panel: "border-violet-200 border-t-violet-500 bg-violet-50",
+    title: "text-violet-600",
+    item: "bg-violet-100/70 text-violet-900 border-transparent hover:border-violet-400 hover:bg-violet-200",
+    itemActive: "bg-violet-200 text-violet-900 border-violet-500",
+    check: "text-violet-600",
+  },
+  emerald: {
+    idle: "bg-emerald-100 text-emerald-800 ring-emerald-200 hover:bg-emerald-200 hover:ring-emerald-300",
+    open: "bg-emerald-200 text-emerald-900 ring-emerald-300",
+    active: "bg-gradient-to-r from-emerald-500 to-green-500 text-white ring-emerald-600 shadow-md shadow-emerald-500/30",
+    icon: "text-emerald-600",
+    panel: "border-emerald-200 border-t-emerald-500 bg-emerald-50",
+    title: "text-emerald-600",
+    item: "bg-emerald-100/70 text-emerald-900 border-transparent hover:border-emerald-400 hover:bg-emerald-200",
+    itemActive: "bg-emerald-200 text-emerald-900 border-emerald-500",
+    check: "text-emerald-600",
+  },
+  rose: {
+    idle: "bg-rose-100 text-rose-800 ring-rose-200 hover:bg-rose-200 hover:ring-rose-300",
+    open: "bg-rose-200 text-rose-900 ring-rose-300",
+    active: "bg-gradient-to-r from-rose-500 to-pink-500 text-white ring-rose-600 shadow-md shadow-rose-500/30",
+    icon: "text-rose-600",
+    panel: "border-rose-200 border-t-rose-500 bg-rose-50",
+    title: "text-rose-600",
+    item: "bg-rose-100/70 text-rose-900 border-transparent hover:border-rose-400 hover:bg-rose-200",
+    itemActive: "bg-rose-200 text-rose-900 border-rose-500",
+    check: "text-rose-600",
+  },
+  teal: {
+    idle: "bg-teal-100 text-teal-800 ring-teal-200 hover:bg-teal-200 hover:ring-teal-300",
+    open: "bg-teal-200 text-teal-900 ring-teal-300",
+    active: "bg-gradient-to-r from-teal-500 to-cyan-500 text-white ring-teal-600 shadow-md shadow-teal-500/30",
+    icon: "text-teal-600",
+    panel: "border-teal-200 border-t-teal-500 bg-teal-50",
+    title: "text-teal-600",
+    item: "bg-teal-100/70 text-teal-900 border-transparent hover:border-teal-400 hover:bg-teal-200",
+    itemActive: "bg-teal-200 text-teal-900 border-teal-500",
+    check: "text-teal-600",
+  },
+  indigo: {
+    idle: "bg-indigo-100 text-indigo-800 ring-indigo-200 hover:bg-indigo-200 hover:ring-indigo-300",
+    open: "bg-indigo-200 text-indigo-900 ring-indigo-300",
+    active: "bg-gradient-to-r from-indigo-500 to-blue-500 text-white ring-indigo-600 shadow-md shadow-indigo-500/30",
+    icon: "text-indigo-600",
+    panel: "border-indigo-200 border-t-indigo-500 bg-indigo-50",
+    title: "text-indigo-600",
+    item: "bg-indigo-100/70 text-indigo-900 border-transparent hover:border-indigo-400 hover:bg-indigo-200",
+    itemActive: "bg-indigo-200 text-indigo-900 border-indigo-500",
+    check: "text-indigo-600",
+  },
+  sky: {
+    idle: "bg-sky-100 text-sky-800 ring-sky-200 hover:bg-sky-200 hover:ring-sky-300",
+    open: "bg-sky-200 text-sky-900 ring-sky-300",
+    active: "bg-gradient-to-r from-sky-500 to-cyan-500 text-white ring-sky-600 shadow-md shadow-sky-500/30",
+    icon: "text-sky-600",
+    panel: "border-sky-200 border-t-sky-500 bg-sky-50",
+    title: "text-sky-600",
+    item: "bg-sky-100/70 text-sky-900 border-transparent hover:border-sky-400 hover:bg-sky-200",
+    itemActive: "bg-sky-200 text-sky-900 border-sky-500",
+    check: "text-sky-600",
+  },
+};
+
+const MASTER_TONES: Record<string, Tone> = {
+  customers: "blue",
+  vendor: "violet",
+  vehicles: "emerald",
+  drivers: "rose",
+};
+
 const navBtnClass = (
+  tone: Tone,
   active: boolean,
   open = false,
   justify = "justify-start",
-) =>
-  `group inline-flex h-10 w-full items-center ${justify} gap-2 whitespace-nowrap rounded-lg px-3.5 text-sm font-medium transition-all duration-200 md:w-auto md:justify-center ${
-    active
-      ? "bg-gradient-to-r from-orange-50 to-amber-50 text-orange-700 shadow-sm ring-1 ring-inset ring-orange-300"
-      : open
-        ? "bg-slate-100 text-slate-900 ring-1 ring-inset ring-slate-200"
-        : "text-slate-600 ring-1 ring-inset ring-transparent hover:bg-slate-100 hover:text-slate-900 hover:ring-slate-200"
+) => {
+  const t = TONES[tone];
+  return `group inline-flex h-11 w-full items-center ${justify} gap-2 whitespace-nowrap rounded-lg px-4 text-[15px] font-semibold ring-1 ring-inset transition-all duration-200 md:w-auto md:justify-center ${
+    active ? t.active : open ? t.open : t.idle
   }`;
+};
 
-const panelClass =
-  "nav-pop z-50 mt-1 max-h-80 w-full overflow-y-auto whitespace-nowrap rounded-xl border border-t-2 border-slate-200 border-t-orange-500 bg-white p-1.5 shadow-xl shadow-orange-900/10 md:absolute md:left-0 md:top-full md:mt-2 md:w-max md:min-w-[14rem]";
+const panelClass = (tone: Tone) =>
+  `nav-pop z-50 mt-1 max-h-80 w-full overflow-y-auto whitespace-nowrap rounded-xl border border-t-4 p-2 shadow-xl shadow-slate-900/10 md:absolute md:left-0 md:top-full md:mt-2 md:w-max md:min-w-[15rem] ${TONES[tone].panel}`;
 
-const itemClass = (active: boolean) =>
-  `nav-item flex w-full items-center justify-between gap-6 rounded-lg border-l-[3px] px-3 py-2 text-left text-sm font-medium transition-all duration-150 ${
-    active
-      ? "border-orange-500 bg-gradient-to-r from-orange-50 to-transparent text-orange-700"
-      : "border-transparent text-slate-700 hover:border-orange-300 hover:bg-slate-50 hover:pl-4 hover:text-slate-900"
+// Hover effect now shows on BOTH sides (left + right border, padding grows on both sides)
+const itemClass = (tone: Tone, active: boolean) =>
+  `nav-item flex w-full items-center justify-between gap-6 rounded-lg border-x-[4px] px-3 py-2.5 text-left text-[15px] font-semibold transition-all duration-150 hover:px-4 ${
+    active ? TONES[tone].itemActive : TONES[tone].item
   }`;
 
 type DropdownProps = {
@@ -431,10 +551,21 @@ type DropdownProps = {
   icon?: ReactNode;
   label: string;
   panelTitle: string;
+  tone?: Tone;
   children: ReactNode;
 };
 
-function Dropdown({ open, onToggle, active = false, icon, label, panelTitle, children }: DropdownProps) {
+function Dropdown({
+  open,
+  onToggle,
+  active = false,
+  icon,
+  label,
+  panelTitle,
+  tone = "orange",
+  children,
+}: DropdownProps) {
+  const t = TONES[tone];
   return (
     <div className="relative w-full md:w-auto">
       <button
@@ -442,11 +573,15 @@ function Dropdown({ open, onToggle, active = false, icon, label, panelTitle, chi
         aria-haspopup="menu"
         aria-expanded={open}
         onClick={onToggle}
-        className={navBtnClass(active, open, "justify-between")}
+        className={navBtnClass(tone, active, open, "justify-between")}
       >
         <span className="flex min-w-0 items-center gap-2">
           {icon && (
-            <span className={`transition-transform duration-200 group-hover:scale-110 ${active ? "text-orange-500" : ""}`}>
+            <span
+              className={`transition-transform duration-200 group-hover:scale-110 ${
+                active ? "text-white" : t.icon
+              }`}
+            >
               {icon}
             </span>
           )}
@@ -455,25 +590,27 @@ function Dropdown({ open, onToggle, active = false, icon, label, panelTitle, chi
           </span>
           {active && (
             <span className="relative flex h-2 w-2 shrink-0">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-orange-400 opacity-75" />
-              <span className="relative inline-flex h-2 w-2 rounded-full bg-orange-500" />
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-white opacity-75" />
+              <span className="relative inline-flex h-2 w-2 rounded-full bg-white" />
             </span>
           )}
         </span>
         <ChevronDown
-          size={14}
+          size={15}
           className={`shrink-0 transition-transform duration-300 ${
-            active ? "text-orange-500" : "text-slate-400"
+            active ? "text-white" : t.icon
           } ${open ? "rotate-180" : ""}`}
         />
       </button>
 
       {open && (
-        <div role="menu" className={panelClass}>
-          <p className="px-3 pb-1 pt-1.5 text-[11px] font-semibold uppercase tracking-wider text-orange-500">
+        <div role="menu" className={panelClass(tone)}>
+          <p
+            className={`px-3 pb-1.5 pt-1.5 text-xs font-bold uppercase tracking-wider ${t.title}`}
+          >
             {panelTitle}
           </p>
-          <ul className="space-y-0.5">{children}</ul>
+          <ul className="space-y-1">{children}</ul>
         </div>
       )}
     </div>
@@ -485,17 +622,30 @@ function DropdownItem({
   onClick,
   children,
   index = 0,
+  tone = "orange",
 }: {
   active: boolean;
   onClick: () => void;
   children: ReactNode;
   index?: number;
+  tone?: Tone;
 }) {
   return (
-    <li role="none" className="nav-item-in" style={{ animationDelay: `${index * 30}ms` }}>
-      <button type="button" role="menuitem" onClick={onClick} className={itemClass(active)}>
+    <li
+      role="none"
+      className="nav-item-in"
+      style={{ animationDelay: `${index * 30}ms` }}
+    >
+      <button
+        type="button"
+        role="menuitem"
+        onClick={onClick}
+        className={itemClass(tone, active)}
+      >
         <span>{children}</span>
-        {active && <Check size={16} className="check-pop shrink-0 text-orange-600" />}
+        {active && (
+          <Check size={16} className={`check-pop shrink-0 ${TONES[tone].check}`} />
+        )}
       </button>
     </li>
   );
@@ -505,20 +655,22 @@ function NavLink({
   onClick,
   icon,
   children,
+  tone = "orange",
 }: {
   active: boolean;
   onClick: () => void;
   icon?: ReactNode;
   children: ReactNode;
+  tone?: Tone;
 }) {
   return (
     <button
       type="button"
       onClick={onClick}
       aria-current={active ? "page" : undefined}
-      className={navBtnClass(active)}
+      className={navBtnClass(tone, active)}
     >
-      {icon}
+      <span className={active ? "text-white" : TONES[tone].icon}>{icon}</span>
       <span>{children}</span>
     </button>
   );
@@ -818,15 +970,15 @@ export function Navbar() {
   ].filter((item) => item.show);
 
   const activeTrackingItem = trackingItems.find(
-  ({ key }) => pathname === `/dashboard/reports/${REPORT_SLUGS[key]}`,
-);
+    ({ key }) => pathname === `/dashboard/reports/${REPORT_SLUGS[key]}`,
+  );
 
   const isRulesActive = is("/dashboard/rules");
 
   return (
     <nav
       ref={navbarRef}
-      className="sticky top-0 z-50 w-full border-b border-slate-200/80 bg-white/85 backdrop-blur-md"
+      className="sticky top-0 z-50 w-full border-b border-orange-200 bg-gradient-to-r from-orange-100 via-amber-50 to-orange-100 shadow-sm"
     >
       <style>{`
   @keyframes nav-pop {
@@ -853,13 +1005,13 @@ export function Navbar() {
 `}</style>
 
       {/* Brand accent line */}
-      <span className="pointer-events-none absolute inset-x-0 top-0 h-0.5 bg-gradient-to-r from-orange-500 via-amber-400 to-orange-500" />
+      <span className="pointer-events-none absolute inset-x-0 top-0 h-1 bg-gradient-to-r from-orange-500 via-amber-400 to-orange-500" />
 
       <div className="flex h-16 items-center gap-3 px-4 lg:px-6">
         {/* Mobile: hamburger */}
         <button
           type="button"
-          className="flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition-colors hover:bg-slate-50 hover:text-slate-900 md:hidden"
+          className="flex h-10 w-10 items-center justify-center rounded-lg border border-orange-300 bg-orange-500 text-white transition-colors hover:bg-orange-600 md:hidden"
           onClick={() => setMobileOpen((prev) => !prev)}
           aria-label="Toggle navigation"
           aria-expanded={mobileOpen}
@@ -878,14 +1030,14 @@ export function Navbar() {
           />
         </div>
 
-        <div className="hidden h-6 w-px bg-slate-200 md:block" />
+        <div className="hidden h-6 w-px bg-orange-300 md:block" />
 
         {/* Menu container: dropdown sheet on mobile, inline row on desktop */}
         <div
-          className={`${mobileOpen ? "flex" : "hidden"} absolute inset-x-0 top-16 max-h-[calc(100vh-4rem)] flex-col gap-3 overflow-y-auto border-b border-slate-200 bg-white p-4 shadow-lg md:static md:flex md:max-h-none md:flex-1 md:flex-row md:items-center md:justify-between md:gap-2 md:overflow-visible md:border-0 md:bg-transparent md:p-0 md:shadow-none`}
+          className={`${mobileOpen ? "flex" : "hidden"} absolute inset-x-0 top-16 max-h-[calc(100vh-4rem)] flex-col gap-3 overflow-y-auto border-b border-orange-200 bg-orange-50 p-4 shadow-lg md:static md:flex md:max-h-none md:flex-1 md:flex-row md:items-center md:justify-between md:gap-2 md:overflow-visible md:border-0 md:bg-transparent md:p-0 md:shadow-none`}
         >
           {/* Left: navigation */}
-          <div className="flex flex-col gap-1 md:flex-row md:items-center md:gap-1">
+          <div className="flex flex-col gap-1.5 md:flex-row md:items-center md:gap-2">
             {/* Master menus */}
             {showMaster &&
               visibleMasterSections.map((menu) => {
@@ -902,12 +1054,14 @@ export function Navbar() {
                     icon={getMenuIcon(menu.key)}
                     label={toTitle(menu.label)}
                     panelTitle={toTitle(menu.label)}
+                    tone={MASTER_TONES[menu.key] ?? "orange"}
                   >
                     {menu.items.map((item) => (
                       <DropdownItem
                         key={item.value}
                         active={item.value === activeMaster}
                         onClick={() => handleMasterSelect(item.value)}
+                        tone={MASTER_TONES[menu.key] ?? "orange"}
                       >
                         {item.label}
                       </DropdownItem>
@@ -928,13 +1082,13 @@ export function Navbar() {
                     <button
                       type="button"
                       onClick={() => handleLeadSelect("lead-form")}
-                      className={`inline-flex h-10 w-full items-center justify-start gap-2 whitespace-nowrap rounded-lg px-3.5 text-sm font-semibold text-white shadow-sm transition-colors duration-150 md:w-auto md:justify-center ${
+                      className={`inline-flex h-11 w-full items-center justify-start gap-2 whitespace-nowrap rounded-lg px-4 text-[15px] font-bold text-white shadow-md transition-colors duration-150 md:w-auto md:justify-center ${
                         activeLeadKey === "lead-form"
-                          ? "bg-orange-700 ring-2 ring-orange-200"
-                          : "bg-orange-600 hover:bg-orange-700"
+                          ? "bg-orange-700 ring-2 ring-orange-300"
+                          : "bg-gradient-to-r from-orange-600 to-amber-600 hover:from-orange-700 hover:to-amber-700"
                       }`}
                     >
-                      <Plus size={16} />
+                      <Plus size={17} />
                       <span>New Lead</span>
                     </button>
                   )}
@@ -950,19 +1104,21 @@ export function Navbar() {
                       open={openMenu === "lead-manager-superadmin"}
                       onToggle={() => toggle("lead-manager-superadmin")}
                       active={isLeadManagerActive}
-                      icon={<ClipboardList size={16} />}
+                      icon={<ClipboardList size={17} />}
                       label={
                         isLeadManagerActive
                           ? LEAD_LABELS[activeLeadKey]
                           : "Lead Manager"
                       }
                       panelTitle="Lead Manager"
+                      tone="blue"
                     >
                       {LEAD_MANAGER_KEYS.map((key) => (
                         <DropdownItem
                           key={key}
                           active={activeLeadKey === key}
                           onClick={() => handleLeadSelect(key)}
+                          tone="blue"
                         >
                           {LEAD_LABELS[key]}
                         </DropdownItem>
@@ -972,7 +1128,8 @@ export function Navbar() {
                     <NavLink
                       active={activeLeadKey === "lead-table"}
                       onClick={() => handleLeadSelect("lead-table")}
-                      icon={<ClipboardList size={16} />}
+                      icon={<ClipboardList size={17} />}
+                      tone="blue"
                     >
                       Lead Manager
                     </NavLink>
@@ -983,7 +1140,8 @@ export function Navbar() {
                   <NavLink
                     active={activeLeadKey === "lead-table"}
                     onClick={handleTlTablesSelect}
-                    icon={<ClipboardList size={16} />}
+                    icon={<ClipboardList size={17} />}
+                    tone="blue"
                   >
                     TL Tables
                   </NavLink>
@@ -995,7 +1153,8 @@ export function Navbar() {
                     <NavLink
                       active={activeLeadKey === "sale-lead-table"}
                       onClick={() => handleSalesLeadSelect("sale-lead-table")}
-                      icon={<Headphones size={16} />}
+                      icon={<Headphones size={17} />}
+                      tone="blue"
                     >
                       Sales Lead Manager
                     </NavLink>
@@ -1003,7 +1162,8 @@ export function Navbar() {
                     <NavLink
                       active={activeLeadKey === "swap-lead-table"}
                       onClick={() => handleSwapLeadSelect("swap-lead-table")}
-                      icon={<ArrowLeftRight size={16} />}
+                      icon={<ArrowLeftRight size={17} />}
+                      tone="violet"
                     >
                       Swap Lead Manager
                     </NavLink>
@@ -1011,7 +1171,8 @@ export function Navbar() {
                     <NavLink
                       active={activeLeadKey === "dsr-lead-table"}
                       onClick={handleDsrSelect}
-                      icon={<FileText size={16} />}
+                      icon={<FileText size={17} />}
+                      tone="emerald"
                     >
                       DSR Lead Manager
                     </NavLink>
@@ -1020,29 +1181,35 @@ export function Navbar() {
 
                 {/* Tracking */}
                 {trackingItems.length > 0 && (
-  <Dropdown
-    open={openMenu === "lead-track-menu"}
-    onToggle={() => toggle("lead-track-menu")}
-    active={is("/dashboard/reports")}
-    icon={<MapPin size={16} />}
-    label={activeTrackingItem ? activeTrackingItem.label : "Tracking"}
-    panelTitle="Reports"
-  >
-    {trackingItems.map(({ label, key }, index) => (
-      <DropdownItem
-        key={key}
-        index={index}
-        active={pathname === `/dashboard/reports/${REPORT_SLUGS[key]}`}
-        onClick={() => {
-          router.push(`/dashboard/reports/${REPORT_SLUGS[key]}`);
-          close();
-        }}
-      >
-        {label}
-      </DropdownItem>
-    ))}
-  </Dropdown>
-)}
+                  <Dropdown
+                    open={openMenu === "lead-track-menu"}
+                    onToggle={() => toggle("lead-track-menu")}
+                    active={is("/dashboard/reports")}
+                    icon={<MapPin size={17} />}
+                    label={
+                      activeTrackingItem ? activeTrackingItem.label : "Tracking"
+                    }
+                    panelTitle="Reports"
+                    tone="teal"
+                  >
+                    {trackingItems.map(({ label, key }, index) => (
+                      <DropdownItem
+                        key={key}
+                        index={index}
+                        active={
+                          pathname === `/dashboard/reports/${REPORT_SLUGS[key]}`
+                        }
+                        onClick={() => {
+                          router.push(`/dashboard/reports/${REPORT_SLUGS[key]}`);
+                          close();
+                        }}
+                        tone="teal"
+                      >
+                        {label}
+                      </DropdownItem>
+                    ))}
+                  </Dropdown>
+                )}
               </>
             )}
 
@@ -1052,15 +1219,17 @@ export function Navbar() {
                 open={openMenu === "dashboard-menu"}
                 onToggle={() => toggle("dashboard-menu")}
                 active={isDashboardActive}
-                icon={<LayoutDashboard size={16} />}
+                icon={<LayoutDashboard size={17} />}
                 label="Dashboards"
                 panelTitle="Dashboards"
+                tone="indigo"
               >
                 {dashboardItems.map((item) => (
                   <DropdownItem
                     key={item.value}
                     active={pathname === DASHBOARD_ROUTES[item.value]}
                     onClick={() => handleDashboardSelect(item.value)}
+                    tone="indigo"
                   >
                     {item.label}
                   </DropdownItem>
@@ -1074,9 +1243,10 @@ export function Navbar() {
                 open={openMenu === "website-menu"}
                 onToggle={() => toggle("website-menu")}
                 active={is("/dashboard/website")}
-                icon={<Monitor size={16} />}
+                icon={<Monitor size={17} />}
                 label="Website"
                 panelTitle="Website"
+                tone="sky"
               >
                 {[
                   { key: "gac", label: "GAC Table" },
@@ -1086,6 +1256,7 @@ export function Navbar() {
                     key={key}
                     active={pathname.endsWith("/" + key)}
                     onClick={() => handleWebsiteSelect(key)}
+                    tone="sky"
                   >
                     {label}
                   </DropdownItem>
@@ -1095,7 +1266,7 @@ export function Navbar() {
           </div>
 
           {/* Right: notifications, rules, profile */}
-          <div className="flex flex-col gap-2 border-t border-slate-100 pt-3 md:ml-auto md:flex-row md:items-center md:gap-2 md:border-0 md:pt-0">
+          <div className="flex flex-col gap-2 border-t border-orange-200 pt-3 md:ml-auto md:flex-row md:items-center md:gap-2 md:border-0 md:pt-0">
             <NotificationDropdown
               isOpen={openMenu === "notifications"}
               onToggle={() => toggle("notifications")}
@@ -1107,18 +1278,18 @@ export function Navbar() {
               <button
                 type="button"
                 onClick={() => router.push("/dashboard/rules")}
-                className={`inline-flex h-10 items-center gap-2 whitespace-nowrap rounded-lg px-3.5 text-sm font-medium transition-colors duration-150 ${
+                className={`inline-flex h-11 items-center gap-2 whitespace-nowrap rounded-lg px-4 text-[15px] font-semibold ring-1 ring-inset transition-colors duration-150 ${
                   isRulesActive
-                    ? "bg-red-50 text-red-700 ring-1 ring-inset ring-red-200"
-                    : "text-red-600 hover:bg-red-50"
+                    ? "bg-red-500 text-white ring-red-600 shadow-md shadow-red-500/30"
+                    : "bg-red-100 text-red-700 ring-red-200 hover:bg-red-200"
                 }`}
               >
-                <BookOpen size={16} className="flex-shrink-0" />
+                <BookOpen size={17} className="flex-shrink-0" />
                 Rules
               </button>
             )}
 
-            <div className="hidden h-6 w-px bg-slate-200 md:block" />
+            <div className="hidden h-6 w-px bg-orange-300 md:block" />
 
             <div className="flex items-center gap-3">
               <UserProfileDropdown
@@ -1142,7 +1313,7 @@ export function Navbar() {
         </div>
 
         {/* Mobile: user chip */}
-        <div className="ml-auto flex items-center gap-2 rounded-full border border-slate-200 bg-white py-1 pl-1 pr-3 md:hidden">
+        <div className="ml-auto flex items-center gap-2 rounded-full border border-orange-200 bg-white py-1 pl-1 pr-3 md:hidden">
           <Image
             src={userAvatar}
             alt="User"

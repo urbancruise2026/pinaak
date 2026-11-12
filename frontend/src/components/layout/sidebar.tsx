@@ -149,27 +149,7 @@ const Sidebar: React.FC = () => {
 
   const userData = rawUser?.data ?? rawUser;
 
-  /*
-   * ROLE PRIORITY:
-   *
-   * 1. role_name
-   * 2. access_role
-   * 3. role
-   *
-   * Example:
-   *
-   * role_name = "CITY MANAGER"
-   * access_role = "SUPER_ADMIN"
-   *
-   * => CITY MANAGER access
-   *
-   * If:
-   *
-   * role_name = null
-   * access_role = "SUPER_ADMIN"
-   *
-   * => SUPER ADMIN access
-   */
+
 
   const roleName = String(rawUser?.role_name ?? userData?.role_name ?? "")
     .trim()
@@ -183,19 +163,8 @@ const Sidebar: React.FC = () => {
     .trim()
     .toLowerCase();
 
-  /*
-   * Effective role:
-   *
-   * role_name has highest priority.
-   * If role_name doesn't exist, access_role is used.
-   * Finally old role is used as fallback.
-   */
 
   const effectiveRole = roleName || accessRole || oldRole;
-
-  // ============================================================
-  // OTHER USER DATA
-  // ============================================================
 
   const subDept = String(
     rawUser?.subDepartment ?? userData?.subDepartment ?? "",

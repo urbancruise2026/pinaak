@@ -14,6 +14,7 @@ const MAKE_CODES = {
   audi: "AU", // confirm karo
   maruti: "MR", // confirm karo
   "volvo eicher": "VE",
+  mahindra: "MH"
 };
 
 const MODEL_CODES = {
@@ -42,6 +43,8 @@ const MODEL_CODES = {
   hycross: "HYC",
   fortuner: "FOR",
   vellfire: "VEL",
+  coaster:"COS",
+  commuter:"COM",
 
   // Maruti
   dzire: "DZI",
@@ -60,12 +63,15 @@ const MODEL_CODES = {
 
   // Buses
   "lux bus": "LXB",
-  "mini bus": "MNB",
+  "mini bus": "MB",
+  "mono bus":"MN",
   traveller: "TRV",
   urbania: "URB",
+  "motor home":"MOTOR",
   // Volvo
-  "lux bus": "LUX BUS",
+  "lux bus": "LUX",
   "vo96": "VO96",
+  "vo96x": "VO96X",
   "vo94": "VO94",
   "vo96 w": "VO96-W",
   "vo94 w": "VO94-W",
@@ -80,6 +86,10 @@ const MODEL_CODES = {
   "vo96slx": "VO96SLX",
   "vo96slx w": "VO96SLX-W",
   "slp": "SLP",
+
+  "xuv 700":"XUV7",
+  "bharat benz staff":"ST",
+  "bharat benz tourist":"TR"
 };
 
 const getMakeCode = (make) => {
