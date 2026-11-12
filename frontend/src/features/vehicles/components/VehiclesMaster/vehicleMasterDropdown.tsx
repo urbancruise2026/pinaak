@@ -65,6 +65,7 @@ export const MAKE_OPTIONS: string[] = [
   "Hyundai",
   "Kia",
   "Maruti",
+  "Mahindra",
   "Mercedes Benz",
   "SML Mahindra",
   "Suzuki",
@@ -76,10 +77,11 @@ export const MAKE_OPTIONS: string[] = [
 
 // Models available for each make. Selecting a make should only show these.
 export const MODELS_BY_MAKE: Record<string, string[]> = {
-  Toyota: ["Crysta", "Hycross", "Fortuner", "Vellfire"],
+  Toyota: ["Crysta", "Hycross", "Fortuner", "Vellfire","Coaster","Commuter"],
   Maruti: ["Dzire", "Ertiga", "Ciaz", "Invicto"],
   Suzuki: ["Dzire", "Ertiga", "Ciaz", "Invicto"],
   Kia: ["Sonet", "Seltos", "Carens", "Carnival", "Carnival 6-CRN-L", "Carnival 6-CRN-L+", "Carnival 6-CRN-P"],
+  Mahindra:["XUV 700"],
   Audi: ["Q3", "A4", "A6", "Q7", "Q5", "Q8"],
   "Mercedes Benz": [
     "A Class",
@@ -96,15 +98,16 @@ export const MODELS_BY_MAKE: Record<string, string[]> = {
   Hyundai: ["Creta", "Venue", "i20", "Verna", "Alcazar", "Exter", "Tucson"],
   Honda: ["City", "Amaze", "Elevate", "Civic", "Jazz", "WR-V", "CR-V"],
   BMW: ["3 Series", "5 Series", "7 Series", "X1", "X3", "X5", "X7"],
-  "Force Motors": ["Traveller", "Urbania"],
+  "Force Motors": ["Traveller", "Urbania","Mono Bus"],
   "Ashok Leyland": ["Lux Bus", "Mini Bus", "SLP"],
-  "Bharat Benz": ["Lux Bus", "Mini Bus", "SLP"],
+  "Bharat Benz": ["Lux Bus", "Mini Bus", "SLP","Motor Home", "Bharat Benz Staff","Bharat Benz Tourist"],
   Eicher: ["Lux Bus", "Mini Bus", "SLP"],
   "SML Mahindra": ["Lux Bus", "Mini Bus", "SLP"],
   Tata: ["Lux Bus", "Mini Bus", "SLP"],
   Volvo: [
   "Lux Bus",
   "VO96",
+  "VO96x",
   "VO94",
   "VO96 w",
   "VO94 w",

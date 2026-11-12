@@ -18,6 +18,9 @@ import {
   registerHealthCheck,
   setShuttingDown,
 } from "./module/Health/health.route.js";
+import { startIvrSyncJob } from "./module/IvrCalls/ivr.service.js";
+
+startIvrSyncJob();
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 // `npm run build` in frontend writes the static site here
