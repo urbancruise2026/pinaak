@@ -4,6 +4,9 @@ import React, { useState } from "react";
 import { useSelector } from "react-redux";
 import { useRouter, usePathname } from "next/navigation";
 import type { RootState } from "@/store/store";
+import { PhoneCall } from "lucide-react";
+import { resolveRole } from "@/lib/roles";
+import { ivrAccessLevel } from "@/features/ivr-calls/ivr.utils";
 
 import {
   setActiveSection,
@@ -241,6 +244,12 @@ const Sidebar: React.FC = () => {
 
   const isSeoTlDigitalMarketing =
     departmentName === "digital marketing" && effectiveRole === "seo tl";
+
+    const showIvr = ivrAccessLevel(
+  resolveRole(currentUser),
+  Number(userData?.id) || null,
+  [roleName, accessRole, subDept, departmentName].join(" "),
+) !== "none";
 
   // ============================================================
   // ROLE TAGS
@@ -523,6 +532,19 @@ const Sidebar: React.FC = () => {
     },
   ].filter((item) => hasAccess(item.allowedRoles));
 
+    const ivrMenuItem = {
+    key: "ivr-reports",
+    icon: <PhoneCall size={iconSize} />,
+    label: "IVR Reports",
+    description: "Calls, missed calls & breaks",
+    isActive: is("/dashboard/ivr-reports"),
+    onClick: () => router.push("/dashboard/ivr-reports"),
+    color: "blue" as Color,
+  };
+  const visibleEmployeeItems = showIvr
+    ? [...employeeMenuItems, ivrMenuItem]
+    : employeeMenuItems;
+
   return (
     <div
       className="absolute top-0 left-0 z-40 h-full bg-white border-r border-gray-200 shadow-xl transition-all duration-300 ease-in-out overflow-y-auto overflow-x-hidden"
@@ -625,7 +647,7 @@ const Sidebar: React.FC = () => {
             {/* EMPLOYEE MENU */}
             {/* ================================================== */}
 
-            {employeeMenuItems.map((item) => (
+            {visibleEmployeeItems.map((item) => (
               <SidebarItem
                 key={item.key}
                 icon={item.icon}

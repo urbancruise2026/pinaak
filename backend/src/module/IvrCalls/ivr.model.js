@@ -7,6 +7,18 @@ import { normalizePhone } from "./ivr.utils.js";
 const FMT = "%Y-%m-%d %H:%i:%s";
 const fmt = (col) => `DATE_FORMAT(${col}, '${FMT}')`;
 
+// SUM()/COALESCE(SUM()) come back from mysql2 as DECIMAL strings ("5").
+// Convert every numeric-looking value to a real number for the API.
+const numberify = (row) =>
+  Object.fromEntries(
+    Object.entries(row).map(([k, v]) => [
+      k,
+      typeof v === "string" && v.trim() !== "" && Number.isFinite(Number(v)) && /^-?\d+(\.\d+)?$/.test(v)
+        ? Number(v)
+        : v,
+    ]),
+  );
+
 const PRESALES_ROLE_SQL = `(
   LOWER(r.role_name) LIKE '%presale%'
   OR LOWER(r.role_name) LIKE '%pre-sale%'
@@ -98,6 +110,9 @@ export const upsertCalls = async (calls) => {
         missed_by, received_by, transferred_to, duration_sec, recording_file, raw_json)
      VALUES ?
      ON DUPLICATE KEY UPDATE
+       direction = VALUES(direction),
+       source = VALUES(source),
+       call_type = VALUES(call_type),
        response = VALUES(response),
        via = VALUES(via),
        missed_by = VALUES(missed_by),
@@ -184,17 +199,18 @@ export const ensureAgents = async (names) => {
     } catch (err) {
       console.error("ivr autoMatchStaff error:", err.message);
     }
-    await pool.query(
+    const [ins] = await pool.query(
       `INSERT IGNORE INTO ivr_agents (ivr_name, staff_id, staff_name) VALUES (?, ?, ?)`,
       [name, staff?.id ?? null, staff?.name ?? null],
     );
+    if (ins.insertId && staff?.id) await addLoginMap(staff.id, ins.insertId);
   }
 };
 
 export const listAgents = async () => {
   const [rows] = await pool.query(
     `SELECT id, ivr_name AS ivrName, staff_id AS staffId, staff_name AS staffName,
-            is_active AS isActive
+            is_active AS isActive, myoperator_uuid AS myoperatorUuid
        FROM ivr_agents ORDER BY ivr_name`,
   );
   return rows;
@@ -207,6 +223,7 @@ export const updateAgent = async (id, { staffId, staffName, isActive }) => {
       WHERE id = ?`,
     [staffId ?? null, staffName ?? null, isActive === undefined ? null : isActive ? 1 : 0, id],
   );
+  if (staffId && result.affectedRows > 0) await addLoginMap(staffId, id);
   return result.affectedRows > 0;
 };
 
@@ -292,13 +309,23 @@ export const getSummary = async (filters) => {
     params,
   );
 
-  return { totals, agents };
+  return {
+    totals: numberify(totals),
+    agents: agents.map(({ agentName, ...rest }) => ({ agentName, ...numberify(rest) })),
+  };
 };
 
-// Incoming missed / voicemail calls + manual follow-up state.
+// Incoming missed / voicemail calls with AUTOMATIC follow-up tracking.
+// For every missed call we look at later calls to/from the same number:
+//   customerCalls/customerConnected = the customer called us again (from this call on)
+//   ourAttempts/ourConnected        = our agents called the customer back
+// Effective status: green if any later call to/from the number connected (or
+// someone marked it connected), orange if we tried (or a manual attempt/trying),
+// else red. Manual "connected" still overrides.
 export const getMissedCalls = async (
   { from, to, agent, hours, search, status, droppedInIvr },
   { page, limit },
+  nowStr,
 ) => {
   const base = buildCallFilters({ from, to, agent, hours, search });
   const where = [
@@ -307,60 +334,139 @@ export const getMissedCalls = async (
     "c.response IN ('missed','voicemail')",
   ];
   const params = [...base.params];
-
-  if (status) {
-    where.push("COALESCE(f.status, 'missed') = ?");
-    params.push(status);
-  }
   if (droppedInIvr === true) where.push("(c.missed_by IS NULL OR c.missed_by = '')");
   if (droppedInIvr === false) where.push("(c.missed_by IS NOT NULL AND c.missed_by <> '')");
 
-  const w = where.join(" AND ");
-  const offset = (page - 1) * limit;
-  const from_ = `FROM ivr_call_logs c LEFT JOIN ivr_missed_followups f ON f.call_uid = c.uid`;
+  const later = (dir, connectedOnly) =>
+    `FROM ivr_call_logs x WHERE x.phone = c.phone AND x.direction = '${dir}'
+       AND x.call_time ${dir === "incoming" && !connectedOnly ? ">=" : ">"} c.call_time
+       ${connectedOnly ? "AND x.response = 'connected'" : ""}`;
 
-  const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total ${from_} WHERE ${w}`, params);
-
-  const [rows] = await pool.query(
-    `SELECT
-       c.uid,
-       c.phone,
-       ${fmt("c.call_time")} AS callTime,
-       c.via,
-       c.response,
-       c.missed_by AS missedBy,
-       c.duration_sec AS durationSec,
-       (c.missed_by IS NULL OR c.missed_by = '') AS droppedInIvr,
-       COALESCE(f.status, 'missed') AS followupStatus,
-       f.note,
-       f.updated_by_name AS updatedByName,
-       ${fmt("f.updated_at")} AS updatedAt,
-       (SELECT COUNT(*) FROM ivr_followup_attempts t WHERE t.call_uid = c.uid) AS attemptCount,
-       (SELECT ${fmt("MAX(t.attempted_at)")} FROM ivr_followup_attempts t WHERE t.call_uid = c.uid)
-         AS lastAttemptAt,
-       -- Hint only (does NOT change the status): a later connected outgoing call to this number.
-       (SELECT ${fmt("MIN(o.call_time)")} FROM ivr_call_logs o
-          WHERE o.phone = c.phone AND o.direction = 'outgoing'
-            AND o.response = 'connected' AND o.call_time > c.call_time) AS callbackConnectedAt
-     ${from_}
-     WHERE ${w}
-     ORDER BY c.call_time DESC
-     LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
-    params,
-  );
+  const cte = `
+    WITH base AS (
+      SELECT
+        c.uid, c.phone, c.call_time AS ct,
+        ${fmt("c.call_time")} AS callTime,
+        c.via, c.response, c.missed_by AS missedBy, c.duration_sec AS durationSec,
+        (c.missed_by IS NULL OR c.missed_by = '') AS droppedInIvr,
+        f.status AS manualStatus, f.note, f.updated_by_name AS updatedByName,
+        ${fmt("f.updated_at")} AS updatedAt,
+        (SELECT COUNT(*) FROM ivr_followup_attempts t WHERE t.call_uid = c.uid) AS manualAttempts,
+        (SELECT COUNT(*) ${later("incoming", false)}) AS customerCalls,
+        (SELECT COUNT(*) ${later("incoming", true)}) AS customerConnected,
+        (SELECT ${fmt("MIN(x.call_time)")} ${later("incoming", true)}) AS customerConnectedAt,
+        (SELECT COUNT(*) ${later("outgoing", false)}) AS ourAttempts,
+        (SELECT COUNT(*) ${later("outgoing", true)}) AS ourConnected,
+        (SELECT ${fmt("MIN(x.call_time)")} ${later("outgoing", true)}) AS ourConnectedAt
+      FROM ivr_call_logs c
+      LEFT JOIN ivr_missed_followups f ON f.call_uid = c.uid
+      WHERE ${where.join(" AND ")}
+    ),
+    eff AS (
+      SELECT base.*,
+        CASE
+          WHEN manualStatus = 'connected' OR customerConnected > 0 OR ourConnected > 0 THEN 'connected'
+          WHEN ourAttempts > 0 OR manualAttempts > 0 OR manualStatus = 'trying' THEN 'trying'
+          ELSE 'missed'
+        END AS followupStatus
+      FROM base
+    )`;
 
   const [[counts]] = await pool.query(
-    `SELECT
-       COALESCE(SUM(COALESCE(f.status,'missed') = 'missed'), 0)    AS missed,
-       COALESCE(SUM(COALESCE(f.status,'missed') = 'trying'), 0)    AS trying,
-       COALESCE(SUM(COALESCE(f.status,'missed') = 'connected'), 0) AS connected
-     ${from_}
-     WHERE ${base.where.join(" AND ")} AND c.direction = 'incoming'
-       AND c.response IN ('missed','voicemail')`,
-    base.params,
+    `${cte}
+     SELECT
+       COALESCE(SUM(followupStatus = 'missed'), 0)    AS missed,
+       COALESCE(SUM(followupStatus = 'trying'), 0)    AS trying,
+       COALESCE(SUM(followupStatus = 'connected'), 0) AS connected
+     FROM eff`,
+    params,
+  );
+  const numCounts = numberify(counts);
+  const total = status ? numCounts[status] : numCounts.missed + numCounts.trying + numCounts.connected;
+
+  const offset = (page - 1) * limit;
+  const [rows] = await pool.query(
+    `${cte}
+     SELECT eff.* FROM eff
+     ${status ? "WHERE followupStatus = ?" : ""}
+     ORDER BY ct DESC
+     LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
+    status ? [...params, status] : params,
   );
 
-  return { total, rows, counts };
+  // Per missed agent: were they on a break, or on another call, at that moment?
+  const states = {};
+  const uids = rows.filter((r) => r.missedBy).map((r) => r.uid);
+  if (uids.length) {
+    const [busy] = await pool.query(
+      `SELECT m.call_uid AS callUid, m.agent_name AS agent, o.direction,
+              ${fmt("o.call_time")} AS startedAt, o.duration_sec AS durationSec
+         FROM ivr_call_agents m
+         JOIN ivr_call_logs c ON c.uid = m.call_uid
+         JOIN ivr_call_agents oa ON oa.agent_name = m.agent_name AND oa.role = 'received'
+         JOIN ivr_call_logs o ON o.uid = oa.call_uid AND o.uid <> c.uid
+              AND o.response = 'connected' AND o.call_time <= c.call_time
+              AND DATE_ADD(o.call_time, INTERVAL o.duration_sec SECOND) >= c.call_time
+        WHERE m.call_uid IN (?) AND m.role = 'missed'`,
+      [uids],
+    );
+    const [brk] = await pool.query(
+      `SELECT m.call_uid AS callUid, m.agent_name AS agent,
+              ${fmt("b.started_at")} AS startedAt, ${fmt("b.ended_at")} AS endedAt
+         FROM ivr_call_agents m
+         JOIN ivr_call_logs c ON c.uid = m.call_uid
+         JOIN ivr_agents ag ON ag.ivr_name = m.agent_name
+         JOIN ivr_breaks b ON (b.agent_id = ag.id OR (b.agent_id IS NULL AND b.staff_id = ag.staff_id))
+              AND b.started_at <= c.call_time AND COALESCE(b.ended_at, ?) >= c.call_time
+        WHERE m.call_uid IN (?) AND m.role = 'missed'`,
+      [nowStr, uids],
+    );
+    const key = (u, a) => `${u}|${a.toLowerCase()}`;
+    const busyMap = new Map(busy.map((r) => [key(r.callUid, r.agent), r]));
+    const brkMap = new Map(brk.map((r) => [key(r.callUid, r.agent), r]));
+    for (const r of rows) {
+      if (!r.missedBy) continue;
+      states[r.uid] = String(r.missedBy)
+        .split(",")
+        .map((n) => n.trim())
+        .filter(Boolean)
+        .map((agentName) => {
+          const b = brkMap.get(key(r.uid, agentName));
+          if (b) {
+            return {
+              agent: agentName,
+              state: "break",
+              detail: `On break ${b.startedAt.slice(11, 16)}-${b.endedAt ? b.endedAt.slice(11, 16) : "running"}`,
+            };
+          }
+          const o = busyMap.get(key(r.uid, agentName));
+          if (o) {
+            return {
+              agent: agentName,
+              state: "busy",
+              detail: `On another ${o.direction} call (${o.startedAt.slice(11, 16)}, ${Math.round(o.durationSec / 60 * 10) / 10} min)`,
+            };
+          }
+          return { agent: agentName, state: "available", detail: "Free - did not pick up" };
+        });
+    }
+  }
+
+  return {
+    total,
+    counts: numCounts,
+    rows: rows.map(({ ct, ...r }) => ({
+      ...r,
+      droppedInIvr: Number(r.droppedInIvr),
+      manualAttempts: Number(r.manualAttempts),
+      customerCalls: Number(r.customerCalls),
+      customerConnected: Number(r.customerConnected),
+      ourAttempts: Number(r.ourAttempts),
+      ourConnected: Number(r.ourConnected),
+      durationSec: Number(r.durationSec),
+      agentStates: states[r.uid] || [],
+    })),
+  };
 };
 
 export const callExists = async (uid) => {
@@ -436,67 +542,245 @@ export const getAttempts = async (uid) => {
 };
 
 /* ------------------------------------------------------------------ */
-/* Breaks                                                             */
+/* Agents <-> Pinaak logins                                            */
 /* ------------------------------------------------------------------ */
 
-export const getOpenBreak = async (staffId) => {
+export const addLoginMap = async (staffId, agentId) => {
+  await pool.query(`INSERT IGNORE INTO ivr_login_map (staff_id, agent_id) VALUES (?, ?)`, [
+    staffId,
+    agentId,
+  ]);
+};
+
+// MyOperator agents this Pinaak login may control (admin-managed).
+export const getAgentsForLogin = async (staffId) => {
   const [rows] = await pool.query(
-    `SELECT id, staff_id AS staffId, staff_name AS staffName,
-            ${fmt("started_at")} AS startedAt, reason
-       FROM ivr_breaks WHERE staff_id = ? AND ended_at IS NULL
-       ORDER BY id DESC LIMIT 1`,
+    `SELECT a.id, a.ivr_name AS ivrName, a.myoperator_uuid AS uuid
+       FROM ivr_login_map m JOIN ivr_agents a ON a.id = m.agent_id
+      WHERE m.staff_id = ? AND a.is_active = 1
+      ORDER BY a.ivr_name`,
+    [staffId],
+  );
+  return rows;
+};
+
+export const getAgentById = async (id) => {
+  const [rows] = await pool.query(
+    `SELECT id, ivr_name AS ivrName, staff_id AS staffId, myoperator_uuid AS uuid
+       FROM ivr_agents WHERE id = ? LIMIT 1`,
+    [id],
+  );
+  return rows[0] || null;
+};
+
+export const getAgentByStaffId = async (staffId) => {
+  const [rows] = await pool.query(
+    `SELECT id, ivr_name AS ivrName, staff_id AS staffId, myoperator_uuid AS uuid
+       FROM ivr_agents WHERE staff_id = ? AND is_active = 1 LIMIT 1`,
     [staffId],
   );
   return rows[0] || null;
 };
 
-export const startBreak = async ({ staffId, staffName, reason, nowStr }) => {
+export const setAgentUuidByName = async (ivrName, uuid) => {
+  const [r] = await pool.query(
+    `UPDATE ivr_agents SET myoperator_uuid = ? WHERE LOWER(ivr_name) = LOWER(?)`,
+    [uuid, ivrName],
+  );
+  return r.affectedRows;
+};
+
+// Admin screen: every agent with the logins allowed to control it.
+export const getAccessMap = async () => {
+  const [agents] = await pool.query(
+    `SELECT id, ivr_name AS ivrName, (myoperator_uuid IS NOT NULL) AS hasUuid, is_active AS isActive
+       FROM ivr_agents ORDER BY ivr_name`,
+  );
+  const [maps] = await pool.query(`SELECT agent_id AS agentId, staff_id AS staffId FROM ivr_login_map`);
+  const names = await getStaffByIds([...new Set(maps.map((m) => m.staffId))]);
+  const byId = new Map(names.map((n) => [n.id, n]));
+  return agents.map((a) => ({
+    ...a,
+    hasUuid: Number(a.hasUuid),
+    isActive: Number(a.isActive),
+    logins: maps
+      .filter((m) => m.agentId === a.id)
+      .map((m) => ({
+        staffId: m.staffId,
+        name: byId.get(m.staffId)?.name || `Staff ${m.staffId}`,
+        roleName: byId.get(m.staffId)?.roleName || null,
+      })),
+  }));
+};
+
+export const replaceAgentLogins = async (agentId, staffIds) => {
+  const conn = await pool.getConnection();
+  try {
+    await conn.beginTransaction();
+    await conn.query(`DELETE FROM ivr_login_map WHERE agent_id = ?`, [agentId]);
+    if (staffIds.length) {
+      await conn.query(`INSERT IGNORE INTO ivr_login_map (staff_id, agent_id) VALUES ?`, [
+        staffIds.map((sid) => [sid, agentId]),
+      ]);
+    }
+    await conn.commit();
+  } catch (err) {
+    await conn.rollback();
+    throw err;
+  } finally {
+    conn.release();
+  }
+};
+
+export const getStaffByIds = async (ids) => {
+  if (!ids.length) return [];
+  const [rows] = await hrmsPool.query(
+    `SELECT u.id, TRIM(CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name)) AS name,
+            r.role_name AS roleName
+       FROM uc_staff u LEFT JOIN roles r ON r.id = u.role_id WHERE u.id IN (?)`,
+    [ids],
+  );
+  return rows;
+};
+
+// Any active HRMS employee (admins pick the Pinaak login to map).
+export const searchStaff = async (q) => {
+  const like = `%${String(q).trim()}%`;
+  const [rows] = await hrmsPool.query(
+    `SELECT u.id, TRIM(CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name)) AS name,
+            r.role_name AS roleName
+       FROM uc_staff u LEFT JOIN roles r ON r.id = u.role_id
+      WHERE u.is_active = 1
+        AND (CONCAT_WS(' ', u.first_name, u.middle_name, u.last_name) LIKE ?
+             OR u.alias_name LIKE ? OR u.short_name LIKE ?)
+      ORDER BY name LIMIT 20`,
+    [like, like, like],
+  );
+  return rows;
+};
+
+/* ------------------------------------------------------------------ */
+/* Breaks (per MyOperator agent)                                       */
+/* ------------------------------------------------------------------ */
+
+const OPEN_BREAK_COLS = `b.id, b.agent_id AS agentId, b.staff_id AS staffId, b.staff_name AS staffName,
+  ${fmt("b.started_at")} AS startedAt, b.reason, b.mo_state AS moState`;
+
+export const getOpenBreakForAgent = async (agentId) => {
+  const [rows] = await pool.query(
+    `SELECT ${OPEN_BREAK_COLS} FROM ivr_breaks b
+      WHERE b.agent_id = ? AND b.ended_at IS NULL ORDER BY b.id DESC LIMIT 1`,
+    [agentId],
+  );
+  return rows[0] || null;
+};
+
+export const getOpenBreaksForAgents = async (agentIds) => {
+  if (!agentIds.length) return [];
+  const [rows] = await pool.query(
+    `SELECT ${OPEN_BREAK_COLS} FROM ivr_breaks b WHERE b.agent_id IN (?) AND b.ended_at IS NULL`,
+    [agentIds],
+  );
+  return rows;
+};
+
+export const startBreak = async ({
+  agentId,
+  agentName,
+  staffId,
+  staffName,
+  reason,
+  nowStr,
+  moState = null,
+  moError = null,
+}) => {
   const [result] = await pool.query(
-    `INSERT INTO ivr_breaks (staff_id, staff_name, started_at, reason) VALUES (?, ?, ?, ?)`,
-    [staffId, staffName, nowStr, reason ?? null],
+    `INSERT INTO ivr_breaks
+       (agent_id, agent_name, staff_id, staff_name, started_at, reason, mo_state, mo_error)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+    [agentId, agentName, staffId, staffName, nowStr, reason ?? null, moState, moError],
   );
   return result.insertId;
 };
 
-export const endBreak = async ({ staffId, nowStr }) => {
-  const [result] = await pool.query(
-    `UPDATE ivr_breaks SET ended_at = ?
-      WHERE staff_id = ? AND ended_at IS NULL
-      ORDER BY id DESC LIMIT 1`,
-    [nowStr, staffId],
-  );
-  return result.affectedRows > 0;
+export const endBreakById = async (id, nowStr) => {
+  await pool.query(`UPDATE ivr_breaks SET ended_at = ? WHERE id = ? AND ended_at IS NULL`, [nowStr, id]);
 };
 
-// Breaks with duration and how many incoming calls this agent missed during it.
-export const getBreaks = async ({ from, to, staffId }, nowStr) => {
+export const updateBreakMo = async (id, moState, moError = null) => {
+  await pool.query(`UPDATE ivr_breaks SET mo_state = ?, mo_error = ? WHERE id = ?`, [
+    moState,
+    moError ? String(moError).slice(0, 255) : null,
+    id,
+  ]);
+};
+
+// Other linked agents who would still receive calls if this one goes on break.
+export const countOtherAvailableAgents = async (agentId) => {
+  const [[row]] = await pool.query(
+    `SELECT COUNT(*) AS n FROM ivr_agents a
+      WHERE a.is_active = 1 AND a.myoperator_uuid IS NOT NULL AND a.id <> ?
+        AND NOT EXISTS (SELECT 1 FROM ivr_breaks b WHERE b.agent_id = a.id AND b.ended_at IS NULL)`,
+    [agentId],
+  );
+  return Number(row.n);
+};
+
+export const getOpenBreaksStartedBefore = async (cutoffStr) => {
+  const [rows] = await pool.query(
+    `SELECT id, agent_id AS agentId, staff_id AS staffId, mo_state AS moState
+       FROM ivr_breaks WHERE ended_at IS NULL AND started_at < ?`,
+    [cutoffStr],
+  );
+  return rows;
+};
+
+export const getBreaksPendingRestore = async () => {
+  const [rows] = await pool.query(
+    `SELECT id, agent_id AS agentId, staff_id AS staffId FROM ivr_breaks
+      WHERE mo_state = 'restore_failed' AND ended_at IS NOT NULL`,
+  );
+  return rows;
+};
+
+// Breaks with duration and how many incoming calls the agent missed during it.
+export const getBreaks = async ({ from, to, agentId }, nowStr) => {
   const params = [nowStr, nowStr, `${from} 00:00:00`, `${to} 23:59:59`];
-  let staffClause = "";
-  if (staffId) {
-    staffClause = "AND b.staff_id = ?";
-    params.push(staffId);
+  let agentClause = "";
+  if (agentId) {
+    agentClause = "AND b.agent_id = ?";
+    params.push(agentId);
   }
 
   const [rows] = await pool.query(
     `SELECT
        b.id,
-       b.staff_id AS staffId,
-       b.staff_name AS staffName,
+       b.agent_id AS agentId,
+       COALESCE(b.agent_name, b.staff_name) AS agentName,
+       b.staff_name AS pressedBy,
        ${fmt("b.started_at")} AS startedAt,
        ${fmt("b.ended_at")} AS endedAt,
        (b.ended_at IS NULL) AS isOpen,
        b.reason,
+       b.mo_state AS moState,
+       b.mo_error AS moError,
        TIMESTAMPDIFF(MINUTE, b.started_at, COALESCE(b.ended_at, ?)) AS durationMin,
        (SELECT COUNT(DISTINCT c.uid)
           FROM ivr_call_logs c
           JOIN ivr_call_agents a ON a.call_uid = c.uid AND a.role = 'missed'
-          JOIN ivr_agents ag ON ag.ivr_name = a.agent_name AND ag.staff_id = b.staff_id
+           AND a.agent_name = COALESCE(b.agent_name,
+                 (SELECT ivr_name FROM ivr_agents WHERE staff_id = b.staff_id ORDER BY id LIMIT 1))
          WHERE c.direction = 'incoming'
            AND c.call_time BETWEEN b.started_at AND COALESCE(b.ended_at, ?)) AS missedDuringBreak
      FROM ivr_breaks b
-     WHERE b.started_at BETWEEN ? AND ? ${staffClause}
+     WHERE b.started_at BETWEEN ? AND ? ${agentClause}
      ORDER BY b.started_at DESC`,
     params,
   );
-  return rows;
+  return rows.map((r) => ({
+    ...r,
+    isOpen: Number(r.isOpen),
+    durationMin: Number(r.durationMin),
+    missedDuringBreak: Number(r.missedDuringBreak),
+  }));
 };

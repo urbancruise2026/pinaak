@@ -20,6 +20,7 @@ import vehicleManagerReducer from "@/features/vehicles/vehicleManagerSlice";
 import followUpReducer from "@/features/leads/lead_followupsSlice";
 import locationReducer from "@/features/location/regionZoneCitySlice";
 import rateQuotationReducer from "@/features/rate-quotation/RateQuotationSlice";
+import ivrReducer from "@/features/ivr-calls/ivrSlice";
 
 export const store = configureStore({
   reducer: {
@@ -44,6 +45,7 @@ export const store = configureStore({
     followUp: followUpReducer,
     location: locationReducer,
     rateQuotation: rateQuotationReducer,
+    ivr: ivrReducer,
   },
 });
 
