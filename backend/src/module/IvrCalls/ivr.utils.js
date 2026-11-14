@@ -58,6 +58,19 @@ export const splitAgents = (value) =>
     .map((s) => s.trim())
     .filter(Boolean);
 
+// 59 | "59" | "00:00:59" | "01:02:03" | "02:03" -> seconds
+export const parseDuration = (value) => {
+  if (value === null || value === undefined || value === "") return 0;
+  if (typeof value === "number") return Math.max(0, Math.round(value));
+  const s = String(value).trim();
+  if (/^\d+$/.test(s)) return Number(s);
+  const parts = s.split(":").map((p) => Number(p));
+  if (parts.length >= 2 && parts.every((n) => Number.isFinite(n))) {
+    return parts.reduce((acc, n) => acc * 60 + n, 0);
+  }
+  return 0;
+};
+
 export const toInt = (value, fallback = 0) => {
   const n = Number.parseInt(value, 10);
   return Number.isFinite(n) ? n : fallback;

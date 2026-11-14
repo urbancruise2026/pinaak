@@ -9,7 +9,18 @@ import {
   WORK_END,
 } from "./ivr.constants.js";
 import { isValidDate, nowIST, todayIST, toInt } from "./ivr.utils.js";
-import { fetchLogsPage, syncIvrLogs } from "./ivr.service.js";
+import { accessLevel, canManage } from "./ivr.access.js";
+import {
+  beginBreak,
+  calibrateCodes,
+  fetchLogsPage,
+  finishBreak,
+  getMyBreakState,
+  listMyOperatorUsers,
+  setReceiveCalls,
+  syncIvrLogs,
+  syncMyOperatorUsers,
+} from "./ivr.service.js";
 import * as model from "./ivr.model.js";
 
 /* ---------------------------- helpers ---------------------------- */
@@ -93,6 +104,7 @@ export const getMissedCalls = asyncHandler(async (req, res) => {
   const { total, rows, counts } = await model.getMissedCalls(
     { ...filters, status, droppedInIvr },
     paging,
+    nowIST(),
   );
 
   res.json(
@@ -145,44 +157,42 @@ export const getMissedAttempts = asyncHandler(async (req, res) => {
 /* ------------------------- breaks -------------------------------- */
 
 export const getMyBreak = asyncHandler(async (req, res) => {
-  const open = await model.getOpenBreak(req.user.id);
-  res.json(new ApiResponse(200, open, "Current break fetched"));
+  res.json(new ApiResponse(200, await getMyBreakState(req.user.id), "Break state fetched"));
 });
 
 export const startMyBreak = asyncHandler(async (req, res) => {
-  if (await model.getOpenBreak(req.user.id)) {
-    throw new ApiError(409, "A break is already running");
-  }
   const reason = req.body?.reason ? String(req.body.reason).trim().slice(0, 255) : null;
-
-  const id = await model.startBreak({
+  const result = await beginBreak({
     staffId: req.user.id,
     staffName: staffName(req.user),
+    agentId: req.body?.agentId,
     reason,
-    nowStr: nowIST(),
+    isManager: canManage(req.user),
   });
-  res.status(201).json(new ApiResponse(201, { id }, "Break started"));
+  res.status(201).json(new ApiResponse(201, result, result.warning || "Break started"));
 });
 
 export const endMyBreak = asyncHandler(async (req, res) => {
-  const ok = await model.endBreak({ staffId: req.user.id, nowStr: nowIST() });
-  if (!ok) throw new ApiError(404, "No running break");
-  res.json(new ApiResponse(200, null, "Break ended"));
+  const result = await finishBreak({
+    staffId: req.user.id,
+    agentId: req.body?.agentId,
+    isManager: canManage(req.user),
+  });
+  res.json(new ApiResponse(200, result, result.warning || "Break ended"));
 });
 
 export const getBreakReport = asyncHandler(async (req, res) => {
   const { from, to } = readFilters(req.query);
-  const staffId = req.query.staffId ? toInt(req.query.staffId) : undefined;
-  const nowStr = nowIST();
+  const agentId = req.query.agentId ? toInt(req.query.agentId) : undefined;
 
-  const items = await model.getBreaks({ from, to, staffId }, nowStr);
+  const items = await model.getBreaks({ from, to, agentId }, nowIST());
 
-  // Per-staff totals for the summary strip.
-  const byStaff = new Map();
+  const byAgent = new Map();
   for (const b of items) {
-    const s = byStaff.get(b.staffId) || {
-      staffId: b.staffId,
-      staffName: b.staffName,
+    const k = b.agentId ?? b.agentName;
+    const s = byAgent.get(k) || {
+      agentId: b.agentId,
+      agentName: b.agentName,
       breaks: 0,
       totalMinutes: 0,
       missedDuringBreak: 0,
@@ -190,10 +200,10 @@ export const getBreakReport = asyncHandler(async (req, res) => {
     s.breaks += 1;
     s.totalMinutes += b.durationMin;
     s.missedDuringBreak += b.missedDuringBreak;
-    byStaff.set(b.staffId, s);
+    byAgent.set(k, s);
   }
 
-  res.json(new ApiResponse(200, { items, summary: [...byStaff.values()] }, "Break report fetched"));
+  res.json(new ApiResponse(200, { items, summary: [...byAgent.values()] }, "Break report fetched"));
 });
 
 /* ------------------------- agents -------------------------------- */
@@ -230,4 +240,61 @@ export const debugSample = asyncHandler(async (req, res) => {
   const now = Math.floor(Date.now() / 1000);
   const json = await fetchLogsPage({ fromUnix: now - 86400, toUnix: now, pageSize: 3 });
   res.json(new ApiResponse(200, json, "Raw sample"));
+});
+
+// Super-admin only: which numeric event/status codes mean what (see ivr.constants.js).
+export const debugCodes = asyncHandler(async (req, res) => {
+  const data = await calibrateCodes();
+  res.json(new ApiResponse(200, data, "Code calibration"));
+});
+
+// Link MyOperator users (uuid) to ivr_agents. Body: { add: ["Teena"] } registers
+// agents that have no calls yet.
+export const syncMyOperatorUsersCtl = asyncHandler(async (req, res) => {
+  const add = Array.isArray(req.body?.add) ? req.body.add : [];
+  res.json(new ApiResponse(200, await syncMyOperatorUsers({ add }), "MyOperator users synced"));
+});
+
+// Super-admin: raw MyOperator user list (to verify uuid / receive_calls fields).
+export const debugMyOperatorUsers = asyncHandler(async (req, res) => {
+  const { raw } = await listMyOperatorUsers();
+  res.json(new ApiResponse(200, raw, "Raw MyOperator users"));
+});
+
+// Super-admin: flip receive_calls for one agent without a break (Postman test).
+export const testReceiveCalls = asyncHandler(async (req, res) => {
+  const agent = await model.getAgentById(toInt(req.params.id));
+  if (!agent) throw new ApiError(404, "Agent not found");
+  if (!agent.uuid) throw new ApiError(400, "Agent has no MyOperator uuid - run /agents/sync-myoperator first");
+  if (typeof req.body?.enabled !== "boolean") throw new ApiError(400, "enabled (true/false) is required");
+  const r = await setReceiveCalls(agent.uuid, req.body.enabled);
+  res.json(new ApiResponse(200, { agent: agent.ivrName, enabled: req.body.enabled, myoperator: r }, "receive_calls updated"));
+});
+
+/* ------------------- access + admin mapping ----------------------- */
+
+export const getAccess = asyncHandler(async (req, res) => {
+  res.json(new ApiResponse(200, { staffId: req.user.id, canManage: canManage(req.user), level: accessLevel(req.user) }, "Access"));
+});
+
+export const getAccessMap = asyncHandler(async (req, res) => {
+  res.json(new ApiResponse(200, await model.getAccessMap(), "Access map fetched"));
+});
+
+export const putAgentLogins = asyncHandler(async (req, res) => {
+  const agentId = toInt(req.params.id);
+  const ids = Array.isArray(req.body?.staffIds)
+    ? [...new Set(req.body.staffIds.map((n) => toInt(n)).filter((n) => n > 0))]
+    : null;
+  if (!agentId || !ids) throw new ApiError(400, "agent id and staffIds[] are required");
+  if (!(await model.getAgentById(agentId))) throw new ApiError(404, "Agent not found");
+
+  await model.replaceAgentLogins(agentId, ids);
+  res.json(new ApiResponse(200, { agentId, staffIds: ids }, "Logins updated"));
+});
+
+export const searchStaff = asyncHandler(async (req, res) => {
+  const q = String(req.query.q ?? "").trim();
+  if (q.length < 2) return res.json(new ApiResponse(200, [], "Type at least 2 letters"));
+  res.json(new ApiResponse(200, await model.searchStaff(q), "Staff found"));
 });

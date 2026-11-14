@@ -1,61 +1,46 @@
 import { Router } from "express";
 import { verifyJWT } from "../../middlewares/auth.middleware.js";
+import { requireAccess, requireFull, requireManage, requireSuperAdmin } from "./ivr.access.js";
 import * as c from "./ivr.controller.js";
 
 const router = Router();
 
-// Normalise role text: "Pre-Sales Executive" / "PRESALE" -> "presalesexecutive" / "presale"
-const roleKey = (u) =>
-  String(u?.role_name ?? u?.role ?? u?.access_role ?? "")
-    .toLowerCase()
-    .replace(/[\s_-]+/g, "");
+router.use(verifyJWT, requireAccess);
 
-const isSuperAdmin = (u) => roleKey(u) === "superadmin";
-const isAdmin = (u) => roleKey(u) === "admin";
-const isPresales = (u) => roleKey(u).includes("presale");
-// Matches "Team Leader" and "Team Leader-Sales". Narrow this if only the
-// presales team leader should have access.
-const isTeamLeader = (u) => roleKey(u).includes("teamleader");
-
-// Presales (sees everything), Admin, Team Leader and Super Admin.
-const requirePresales = (req, res, next) => {
-  const u = req.user;
-  const allowed = isPresales(u) || isAdmin(u) || isTeamLeader(u) || isSuperAdmin(u);
-  if (u?.loginType !== "employee" || !allowed) {
-    return res.status(403).json({ message: "You do not have access to IVR reports" });
-  }
-  next();
-};
-
-const requireSuperAdmin = (req, res, next) => {
-  if (!isSuperAdmin(req.user)) return res.status(403).json({ message: "Super admin only" });
-  next();
-};
-
-router.use(verifyJWT, requirePresales);
+// Who am I (canManage etc.)
+router.get("/access", c.getAccess);
 
 // Reports
 router.get("/calls", c.getCalls);
-router.get("/summary", c.getSummary);
+router.get("/summary", requireFull, c.getSummary);
 
-// Missed calls + manual follow-up (green / red / orange)
+// Missed calls (status is automatic; manual override kept)
 router.get("/missed", c.getMissedCalls);
 router.patch("/missed/:uid/status", c.updateMissedStatus);
 router.post("/missed/:uid/attempt", c.addMissedAttempt);
 router.get("/missed/:uid/attempts", c.getMissedAttempts);
 
-// Breaks
+// Breaks (per MyOperator agent)
 router.get("/breaks/me", c.getMyBreak);
 router.post("/breaks/start", c.startMyBreak);
 router.post("/breaks/end", c.endMyBreak);
-router.get("/breaks", c.getBreakReport);
+router.get("/breaks", requireFull, c.getBreakReport);
 
-// MyOperator agent <-> staff mapping
+// Agents (read for everyone with access; changes for IVR admins only)
 router.get("/agents", c.getAgents);
-router.put("/agents/:id", c.updateAgent);
+router.put("/agents/:id", requireManage, c.updateAgent);
+router.post("/agents/sync-myoperator", requireManage, c.syncMyOperatorUsersCtl);
+router.put("/agents/:id/receive-calls", requireManage, c.testReceiveCalls);
 
-// Sync
-router.post("/sync", c.syncNow);
+// Which Pinaak login controls which MyOperator agent
+router.get("/access-map", requireManage, c.getAccessMap);
+router.put("/agents/:id/logins", requireManage, c.putAgentLogins);
+router.get("/staff-search", requireManage, c.searchStaff);
+
+// Sync + debug
+router.post("/sync", requireFull, c.syncNow);
 router.get("/debug/sample", requireSuperAdmin, c.debugSample);
+router.get("/debug/codes", requireSuperAdmin, c.debugCodes);
+router.get("/debug/myoperator-users", requireSuperAdmin, c.debugMyOperatorUsers);
 
 export default router;
