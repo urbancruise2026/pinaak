@@ -18,7 +18,12 @@ import {
   FileUp,
 } from "lucide-react";
 import FormPageHeader from "@/components/ui/PageHeader/FormPageHeader";
-import { Section, TextField, SelectField, FileField } from "./vendorComponents/FormParts";
+import {
+  Section,
+  TextField,
+  SelectField,
+  FileField,
+} from "./vendorComponents/FormParts";
 import {
   THEMES as T,
   COMPANY_FIELDS,
@@ -180,7 +185,9 @@ const VendorForm: React.FC<VendorFormProps> = ({
               value={personalInfo.personalCity}
               onChange={f.handleCityChange}
               disabled={f.isLoadingCities}
-              placeholder={f.isLoadingCities ? "Loading cities..." : "Select City"}
+              placeholder={
+                f.isLoadingCities ? "Loading cities..." : "Select City"
+              }
               options={f.cityNames as any}
             />
 
@@ -247,33 +254,68 @@ const VendorForm: React.FC<VendorFormProps> = ({
           </Section>
 
           {/* 4 — Documents */}
+          {/* 4 — Documents */}
           <Section theme={T.docs} Icon={FileUp} title="Document Uploads">
-            {DOC_FIELDS.map(({ key, label, Icon }) => (
-              <FileField
-                key={key}
-                label={label}
-                Icon={Icon}
-                theme={T.docs}
-                viewMode={isView}
-                file={f.files[key]}
-                currentUrl={formData[key]}
-                onChange={f.handleFileChange(key)}
-              />
-            ))}
+            {DOC_FIELDS.map(({ key, label, Icon }) => {
+              const selectedFile = f.files[key];
+              const isBusy = !!f.uploading[key];
+              const isUploaded = !!formData[key] && !isBusy;
+
+              return (
+                <div
+                  key={key}
+                  className={`rounded-lg p-2 transition ${
+                    isBusy
+                      ? "bg-amber-50 ring-2 ring-amber-300"
+                      : isUploaded
+                        ? "bg-green-50 ring-2 ring-green-400"
+                        : ""
+                  }`}
+                >
+                  <FileField
+                    key={`${key}-${f.fileResetKey}`}
+                    label={label}
+                    Icon={Icon}
+                    theme={T.docs}
+                    viewMode={isView}
+                    file={selectedFile}
+                    currentUrl={formData[key]}
+                    onChange={f.handleFileChange(key)}
+                  />
+
+                  {isBusy && (
+                    <p className="mt-1 text-xs font-medium text-amber-600">
+                      Uploading...
+                    </p>
+                  )}
+
+                  {isUploaded && (
+                    <p className="flex items-center gap-1 mt-1 text-xs font-medium text-green-600">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                      <span className="truncate">
+                        {selectedFile ? selectedFile.name : "Already uploaded"}
+                      </span>
+                    </p>
+                  )}
+                </div>
+              );
+            })}
           </Section>
 
           {!isView && (
             <div className="flex justify-end pt-2">
               <button
                 type="submit"
-                disabled={f.saving}
+                disabled={f.saving || f.isUploading}
                 className="px-6 py-2.5 text-sm font-medium text-white transition rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-300 disabled:cursor-not-allowed"
               >
                 {f.saving
                   ? "Saving..."
-                  : f.isEdit
-                    ? "Update Vendor Profile"
-                    : "Save Vendor Profile"}
+                  : f.isUploading
+                    ? "Uploading documents..."
+                    : f.isEdit
+                      ? "Update Vendor Profile"
+                      : "Save Vendor Profile"}
               </button>
             </div>
           )}

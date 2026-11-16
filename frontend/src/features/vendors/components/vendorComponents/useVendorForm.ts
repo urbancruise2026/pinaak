@@ -17,6 +17,7 @@ import {
   fetchStatesByCity,
   resetStatesForCity,
 } from "@/features/location/stateSlice";
+import { uploadToCloudinary } from "@/features/utils/uploadToCloudinary";
 import { initialFiles, initialFormState } from "./constants";
 import type {
   AppRootState,
@@ -28,14 +29,13 @@ import type {
 } from "./types";
 
 /* Backend vendor -> form data (sirf wahi keys jo form me hain) */
-const mapVendorToForm = (
-  v: VendorResponse,
-): VendorFormData => {
-
+const mapVendorToForm = (v: VendorResponse): VendorFormData => {
   const flat = Object.fromEntries(
     (Object.keys(initialFormState) as (keyof VendorFormData)[])
-      .filter((k) => k !== "personalInfo" && k !== "password")
-      .map((k) => [k, v?.[k] ?? ""]),
+      .filter(
+        (k) => k !== "personalInfo" && k !== "companyinfo" && k !== "password",
+      )
+      .map((k) => [k, (v as any)?.[k] ?? ""]),
   );
   return {
     ...initialFormState,
@@ -47,8 +47,77 @@ const mapVendorToForm = (
       personalCity: v.personalInfo?.personalCity ?? "",
       personalState: v.personalInfo?.personalState ?? "",
     },
+    companyinfo: {
+      companyState: (v as any).companyinfo?.companyState ?? "",
+      companyCity: (v as any).companyinfo?.companyCity ?? "",
+    },
   };
 };
+
+/* Vendor name se safe Cloudinary folder name banata hai */
+const getVendorFolder = (name?: string) => {
+  const safeName =
+    (name ?? "")
+      .trim()
+      .replace(/[^a-zA-Z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "") || "unnamed_vendor";
+
+  return `vendor_details/${safeName}`;
+};
+
+/* Har field hamesha bhejo (khali ho to "" jayega, backend NULL bana dega) */
+const buildPayload = (data: VendorFormData) => ({
+  ...data,
+
+  username: data.username ?? "",
+  password: data.password ?? "",
+  name: data.name ?? "",
+  shortName: data.shortName ?? "",
+  email: data.email ?? "",
+  phone: data.phone ?? "",
+  address: data.address ?? "",
+  aadhaarNumber: data.aadhaarNumber ?? "",
+
+  ownerName: data.ownerName?.trim() ?? "",
+  ownerPhone: data.ownerPhone ?? "",
+  ownerEmail: data.ownerEmail ?? "",
+  managerName1: data.managerName1 ?? "",
+  managerPhone1: data.managerPhone1 ?? "",
+  managerEmail1: data.managerEmail1 ?? "",
+  managerName2: data.managerName2 ?? "",
+  managerPhone2: data.managerPhone2 ?? "",
+  managerEmail2: data.managerEmail2 ?? "",
+
+  companyName: data.companyName ?? "",
+  companyType: data.companyType ?? "",
+  companyPanNumber: data.companyPanNumber ?? "",
+  companyRegisteredNumber: data.companyRegisteredNumber ?? "",
+  gstNumber: data.gstNumber ?? "",
+  businessNumber: data.businessNumber ?? "",
+  registeredAddress: data.registeredAddress ?? "",
+  garageAddress: data.garageAddress ?? "",
+  garagePhone: data.garagePhone ?? "",
+  cooperativeName: data.cooperativeName ?? "",
+  cooperativeNumber: data.cooperativeNumber ?? "",
+
+  personalInfo: {
+    personalAddress: data.personalInfo?.personalAddress ?? "",
+    personalCity: data.personalInfo?.personalCity ?? "",
+    personalState: data.personalInfo?.personalState ?? "",
+  },
+  companyinfo: {
+    companyState: data.companyinfo?.companyState ?? "",
+    companyCity: data.companyinfo?.companyCity ?? "",
+  },
+
+  // documents: upload ke time hi URL formData me aa chuka hai
+  passportPhoto: data.passportPhoto ?? "",
+  panDoc: data.panDoc ?? "",
+  adharDoc: data.adharDoc ?? "",
+  gstDoc: data.gstDoc ?? "",
+  vendorProof: data.vendorProof ?? "",
+  vehicleDoc: data.vehicleDoc ?? "",
+});
 
 interface Options {
   mode: FormMode;
@@ -64,12 +133,13 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
   const isView = mode === "view";
 
   const cities = useSelector((s: AppRootState) => s.stateCity?.cities);
-  const selectedVendor = useSelector(
-    (s: RootState) => s.vendor.selectedVendor,
-  );
+  const selectedVendor = useSelector((s: RootState) => s.vendor.selectedVendor);
 
   const [formData, setFormData] = useState<VendorFormData>(initialFormState);
   const [files, setFiles] = useState<FileState>(initialFiles);
+  const [uploading, setUploading] = useState<Partial<Record<DocKey, boolean>>>(
+    {},
+  );
   const [states, setStates] = useState<StateItem[]>([]);
 
   const [isLoadingCities, setIsLoadingCities] = useState(false);
@@ -79,6 +149,8 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [fileResetKey, setFileResetKey] = useState(0);
+  const isUploading = Object.values(uploading).some(Boolean);
 
   /* ---------- Data loading ---------- */
   const loadStates = useCallback(
@@ -131,7 +203,7 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
   // vendor -> form
   useEffect(() => {
     if (!selectedVendor || mode === "create") return;
-   const mapped = mapVendorToForm(selectedVendor);
+    const mapped = mapVendorToForm(selectedVendor);
 
     setFormData(mapped);
     loadStates(mapped.personalInfo.personalCity);
@@ -176,10 +248,39 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
     [loadStates],
   );
 
+  /* File select hote hi Cloudinary par upload, URL formData me save */
   const handleFileChange = useCallback(
-    (key: DocKey) => (e: React.ChangeEvent<HTMLInputElement>) =>
-      setFiles((prev) => ({ ...prev, [key]: e.target.files?.[0] ?? null })),
-    [],
+    (key: DocKey) => async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const input = e.target;
+      const file = input.files?.[0] ?? null;
+      if (!file) return;
+
+      // folder vendor ke naam se banta hai, isliye naam pehle chahiye
+      if (!formData.name?.trim()) {
+        setError("Document upload karne se pehle Vendor Name bharo");
+        input.value = "";
+        return;
+      }
+
+      setError(null);
+      setFiles((prev) => ({ ...prev, [key]: file }));
+      setUploading((prev) => ({ ...prev, [key]: true }));
+
+      try {
+        const url = await uploadToCloudinary(file, {
+          folder: getVendorFolder(formData.name),
+          fileName: key,
+        });
+        setFormData((prev) => ({ ...prev, [key]: url }));
+      } catch (err: any) {
+        setFiles((prev) => ({ ...prev, [key]: null }));
+        setError(err?.message || "Document upload failed");
+        input.value = "";
+      } finally {
+        setUploading((prev) => ({ ...prev, [key]: false }));
+      }
+    },
+    [formData.name],
   );
 
   const handleBack = useCallback(() => {
@@ -190,37 +291,36 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
   const togglePassword = useCallback(() => setShowPassword((p) => !p), []);
 
   /* ---------- Submit ---------- */
-  const validate = (): string | null => {
-    if (!isEdit && !formData.username.trim()) return "Username is required";
-    if (!isEdit && !formData.password.trim()) return "Password is required";
-    if (formData.password && formData.password.length < 6)
-      return "Password must be at least 6 characters long";
-    return null;
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setSuccess(null);
+    setError(null);
 
-    const validationError = validate();
-    setError(validationError);
-    if (validationError) return;
+    if (isUploading) {
+      setError("Document upload ho raha hai, thoda wait karo");
+      return;
+    }
 
     setSaving(true);
+
     try {
+      // documents already upload ho chuke hain, sirf URLs ke saath payload
+      const body = buildPayload(formData);
+
       if (isEdit && formData.id) {
         // blank password => bhejna nahi hai, backend purana hash rakhega
-        const { password, ...rest } = formData;
-        const payload = password.trim() ? formData : rest;
+        const { password, ...rest } = body;
+        const payload = password?.trim() ? body : rest;
         await dispatch(
           updateVendorThunk({ id: formData.id, vendorData: payload }),
         ).unwrap();
         setSuccess("Vendor updated successfully!");
       } else {
-        await dispatch(createVendorThunk(formData)).unwrap();
+        await dispatch(createVendorThunk(body)).unwrap();
         setSuccess("Vendor created successfully!");
         setFormData(initialFormState);
         setFiles(initialFiles);
+        setFileResetKey((k) => k + 1); // <- add
         setStates([]);
         dispatch(resetStatesForCity());
       }
@@ -251,6 +351,8 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
     isLoadingVendor,
     isLoadingStates,
     saving,
+    uploading,
+    isUploading,
     showPassword,
     error,
     success,
@@ -260,5 +362,6 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
     handleFileChange,
     handleSubmit,
     togglePassword,
+    fileResetKey,
   };
 }

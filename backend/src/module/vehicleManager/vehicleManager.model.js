@@ -1,4 +1,124 @@
 import { hrmsPool, pool } from "../../config/mySqlDB.js";
+import { calculateVehicleAging } from "./vehicleManager.service.js";
+
+// =========================================================
+// NEW SCHEMA
+//
+// vendors(id, vender_code, name, short_name, status, ...)   <- existing table
+// vehicle_manager(id, code, vendor_id, variant, veh_no, garage,
+//                 city_id, reg_date, status, created_at, updated_at)
+// vehicle_amenities(vehicle_id, amenity_code)
+// vehicle_master(code, seat, category, config, amenities, ...)   <- unchanged
+//
+// Removed from vehicle_manager: vendor (text), model, city, aging, amenities
+// aging  -> vehicleManager.service.js ke calculateVehicleAging se reg_date par calculate (years.months)
+// amenities -> vehicle_amenities table (returned as comma string + array)
+// city name -> hrms DB (city table) using city_id
+// =========================================================
+
+// Common SELECT used everywhere, so the response shape is always the same
+const BASE_SELECT = `
+  SELECT
+    vm.id,
+    vm.code,
+    vm.vendor_id,
+    v.name AS vendor,
+    v.vender_code AS vendor_code,
+    vm.variant,
+    vm.veh_no,
+    vm.garage,
+    vm.city_id,
+    vm.city_id AS city,
+    vm.reg_date,
+    vm.status,
+    vm.created_at,
+    vm.updated_at,
+    (
+      SELECT GROUP_CONCAT(va.amenity_code ORDER BY va.amenity_code SEPARATOR ',')
+      FROM vehicle_amenities va
+      WHERE va.vehicle_id = vm.id
+    ) AS amenities,
+    vmst.seat,
+    vmst.category,
+    vmst.config
+  FROM vehicle_manager vm
+  JOIN vendors v ON v.id = vm.vendor_id
+  LEFT JOIN vehicle_master vmst ON vm.code = vmst.code
+`;
+
+// Amenities can come as array ["MOD","SB"] or string "MOD,SB"
+const normalizeAmenities = (amenities) => {
+  if (!amenities) return [];
+
+  const list = Array.isArray(amenities)
+    ? amenities
+    : String(amenities).split(",");
+
+  return [...new Set(list.map((a) => String(a).trim()).filter(Boolean))];
+};
+
+// vendors table mein same naam ke kai vendor ho sakte hain (name UNIQUE nahi hai),
+// isliye vendor sirf vendor_id se resolve hota hai, naam se nahi
+const resolveVendorId = async (conn, { vendor_id }) => {
+  if (!vendor_id) throw new Error("Valid vendor_id is required");
+
+  const [rows] = await conn.execute(
+    `SELECT id FROM vendors WHERE id = ? LIMIT 1`,
+    [Number(vendor_id)],
+  );
+
+  if (!rows[0]) throw new Error("Valid vendor_id is required");
+
+  return rows[0].id;
+};
+
+const replaceAmenities = async (conn, vehicleId, amenities) => {
+  await conn.execute(`DELETE FROM vehicle_amenities WHERE vehicle_id = ?`, [
+    vehicleId,
+  ]);
+
+  const codes = normalizeAmenities(amenities);
+
+  if (codes.length > 0) {
+    await conn.query(
+      `INSERT IGNORE INTO vehicle_amenities (vehicle_id, amenity_code) VALUES ?`,
+      [codes.map((code) => [vehicleId, code])],
+    );
+  }
+};
+
+const attachCityNames = async (rows) => {
+  const cityIds = [
+    ...new Set(
+      rows
+        .map((r) => r.city_id)
+        .filter((id) => id !== null && id !== undefined && id !== ""),
+    ),
+  ];
+
+  let cityMap = {};
+
+  if (cityIds.length > 0) {
+    const placeholders = cityIds.map(() => "?").join(",");
+
+    const [cityRows] = await hrmsPool.execute(
+      `SELECT id, city_name FROM city WHERE id IN (${placeholders})`,
+      cityIds,
+    );
+
+    cityMap = cityRows.reduce((acc, c) => {
+      acc[c.id] = c.city_name;
+      return acc;
+    }, {});
+  }
+
+  return rows.map((row) => ({
+    ...row,
+    city_name: cityMap[row.city_id] ?? null,
+    aging: calculateVehicleAging(row.reg_date),
+    amenities_list: row.amenities ? row.amenities.split(",") : [],
+  }));
+};
 
 export const getVehicleManagerByVehNo = async (veh_no) => {
   try {
@@ -8,7 +128,7 @@ export const getVehicleManagerByVehNo = async (veh_no) => {
     );
     return rows[0] ?? null;
   } catch (error) {
-    console.error("getVehicleManagerByveh_no error:", error);
+    console.error("getVehicleManagerByVehNo error:", error);
     throw error;
   }
 };
@@ -16,102 +136,17 @@ export const getVehicleManagerByVehNo = async (veh_no) => {
 export const getVehicleManagerById = async (id) => {
   try {
     const [rows] = await pool.execute(
-      `
-      SELECT
-        vm.id,
-        vm.code,
-        vm.vendor,
-        vm.model,
-        vm.veh_no,
-        vm.garage,
-        vm.city,
-        vm.reg_date,
-        vm.aging,
-        vm.amenities,
-        vm.status,
-        vmst.seat,
-        vmst.variant,
-        vmst.category,
-        vmst.config
-
-      FROM vehicle_manager vm
-
-      LEFT JOIN vehicle_master vmst
-        ON vm.code = vmst.code
-
-      WHERE vm.id = ?
-
-      LIMIT 1
-      `,
+      `${BASE_SELECT} WHERE vm.id = ? LIMIT 1`,
       [id],
     );
 
-    if (!rows[0]) {
-      return null;
-    }
+    if (!rows[0]) return null;
 
-    const vehicle = rows[0];
-
-    // =================================================
-    // GET CITY NAME FROM HRMS DB
-    // =================================================
-
-    let cityName = null;
-
-    if (
-      vehicle.city !== null &&
-      vehicle.city !== undefined &&
-      vehicle.city !== ""
-    ) {
-      const [cityRows] = await hrmsPool.execute(
-        `
-        SELECT id, city_name
-        FROM city
-        WHERE id = ?
-        LIMIT 1
-        `,
-        [vehicle.city],
-      );
-
-      cityName = cityRows[0]?.city_name ?? null;
-    }
-
-    // =================================================
-    // RETURN SAME DATA NEEDED BY TABLE
-    // =================================================
+    const [vehicle] = await attachCityNames([rows[0]]);
 
     return {
-      id: vehicle.id,
-
-      code: vehicle.code,
-
-      seat: vehicle.seat ?? null,
-
-      category: vehicle.category ?? null,
-
-      variant: vehicle.variant ?? null,
-
-      city: vehicle.city ?? null,
-
-      city_name: cityName,
-
-      vendor: vehicle.vendor ?? null,
-
-      garage: vehicle.garage ?? null,
-
-      veh_no: vehicle.veh_no ?? null,
-
-      reg_date: vehicle.reg_date ?? null,
-
-      aging: vehicle.aging ?? null,
-
-      amenities: vehicle.amenities ?? null,
-
+      ...vehicle,
       status: vehicle.status ?? "Active",
-
-      // Optional fields agar database mein hain
-      config: vehicle.config ?? null,
-      model: vehicle.model ?? null,
     };
   } catch (error) {
     console.error("getVehicleManagerById error:", error);
@@ -120,108 +155,114 @@ export const getVehicleManagerById = async (id) => {
 };
 
 export const createVehicleManagerModel = async (payload) => {
+  const conn = await pool.getConnection();
+
   try {
     const {
       code,
+      vendor_id,
       vendor,
-      model,
-      variant, // ✅ ADD THIS
+      variant,
       veh_no,
       garage,
+      city_id,
       city,
       reg_date,
-      aging,
       amenities,
+      status,
     } = payload;
 
-    const [result] = await pool.execute(
+    await conn.beginTransaction();
+
+    const finalVendorId = await resolveVendorId(conn, { vendor_id, vendor });
+
+    const [result] = await conn.execute(
       `INSERT INTO vehicle_manager
-        (
-          code,
-          vendor,
-          model,
-          variant,
-          veh_no,
-          garage,
-          city,
-          reg_date,
-          aging,
-          amenities
-        )
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        (code, vendor_id, variant, veh_no, garage, city_id, reg_date, status)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         code,
-        vendor || null,
-        model || null,
-        variant || null, // ✅ ADD THIS
+        finalVendorId,
+        variant || null,
         veh_no,
         garage || null,
-        city || null,
-        reg_date || null,
-        aging ?? null,
-        amenities || null,
+        city_id || city || null,
+        reg_date,
+        status || "Active",
       ],
     );
 
-    return {
-      id: result.insertId,
-      code,
-      vendor: vendor || null,
-      model: model || null,
-      variant: variant || null, // ✅ ADD THIS
-      veh_no,
-      garage: garage || null,
-      city: city || null,
-      reg_date: reg_date || null,
-      aging: aging ?? null,
-      amenities: amenities || null,
-    };
+    await replaceAmenities(conn, result.insertId, amenities);
+
+    await conn.commit();
+
+    return await getVehicleManagerById(result.insertId);
   } catch (error) {
+    await conn.rollback();
     console.error("createVehicleManagerModel error:", error);
     throw error;
+  } finally {
+    conn.release();
   }
 };
 
 export const updateVehicleManagerModel = async (id, payload) => {
+  const conn = await pool.getConnection();
+
   try {
     const {
       code,
+      vendor_id,
       vendor,
-      model,
       variant,
       veh_no,
       garage,
+      city_id,
       city,
       reg_date,
-      aging,
       amenities,
     } = payload;
 
-    const [result] = await pool.execute(
+    await conn.beginTransaction();
+
+    const finalVendorId = await resolveVendorId(conn, { vendor_id, vendor });
+
+    const [result] = await conn.execute(
       `UPDATE vehicle_manager
-       SET code = ?, vendor = ?, model = ?, variant = ?, veh_no = ?,
-           garage = ?, city = ?, reg_date = ?, aging = ?, amenities = ?
+       SET code = ?, vendor_id = ?, variant = ?, veh_no = ?,
+           garage = ?, city_id = ?, reg_date = ?
        WHERE id = ?`,
       [
         code,
-        vendor || null,
-        model || null,
+        finalVendorId,
         variant || null,
         veh_no,
         garage || null,
-        city || null,
-        reg_date || null,
-        aging ?? null,
-        amenities || null,
+        city_id || city || null,
+        reg_date,
         id,
       ],
     );
 
-    if (result.affectedRows === 0) return null;
+    if (result.affectedRows === 0) {
+      await conn.rollback();
+      return null;
+    }
+
+    // amenities key aayi hi nahi to purani amenities as-it-is rahengi
+    if (amenities !== undefined) {
+      await replaceAmenities(conn, id, amenities);
+    }
+
+    await conn.commit();
+
     return await getVehicleManagerById(id);
   } catch (error) {
+    await conn.rollback();
     console.error("updateVehicleManagerModel error:", error);
     throw error;
+  } finally {
+    conn.release();
   }
 };
 
@@ -241,289 +282,119 @@ export const getAllVehicleManagersModel = async ({
   try {
     const offset = (Number(page) - 1) * Number(limit);
 
-    // =========================================================
-    // MAIN QUERY
-    // variant -> vehicle_manager (vm.variant)
-    // seat/category/config -> vehicle_master (vmst)
-    // =========================================================
-    let query = `
-      SELECT
-        vm.*,
-        vmst.seat,
-        vmst.category,
-        vmst.config
-      FROM vehicle_manager vm
-      LEFT JOIN vehicle_master vmst
-        ON vm.code = vmst.code
-      WHERE 1=1
-    `;
-
-    // =========================================================
-    // COUNT QUERY
-    // =========================================================
-    let countQuery = `
-      SELECT COUNT(*) AS total
-      FROM vehicle_manager vm
-      LEFT JOIN vehicle_master vmst
-        ON vm.code = vmst.code
-      WHERE 1=1
-    `;
-
+    let where = ` WHERE 1=1 `;
     const params = [];
-    const countParams = [];
 
-    // =========================================================
-    // HELPER
-    // Comma-separated values ko array mein convert karega
-    // Example: "Toyota,Honda" -> ["Toyota", "Honda"]
-    // =========================================================
-    const toArray = (val, isNumeric = false) => {
-      return String(val)
+    // "Toyota,Honda" -> ["Toyota", "Honda"]
+    const toArray = (val, isNumeric = false) =>
+      String(val)
         .split(",")
         .map((v) => v.trim())
         .filter((v) => v !== "")
         .map((v) => (isNumeric ? Number(v) : v))
         .filter((v) => !isNumeric || !isNaN(v));
-    };
 
-    // =========================================================
-    // HELPER
-    // Main query + count query dono mein IN clause add karega
-    // =========================================================
     const addInClause = (column, values) => {
-      const placeholders = values.map(() => "?").join(",");
-
-      query += ` AND ${column} IN (${placeholders})`;
-      countQuery += ` AND ${column} IN (${placeholders})`;
-
+      where += ` AND ${column} IN (${values.map(() => "?").join(",")})`;
       params.push(...values);
-      countParams.push(...values);
     };
 
-    // =========================================================
     // SEARCH
-    // =========================================================
     if (search) {
-      query += `
+      where += `
         AND (
           vm.code LIKE ?
-          OR vm.vendor LIKE ?
-          OR vm.model LIKE ?
+          OR v.name LIKE ?
           OR vm.variant LIKE ?
           OR vm.veh_no LIKE ?
           OR vm.garage LIKE ?
           OR vm.reg_date LIKE ?
-          OR vm.aging LIKE ?
-          OR vm.amenities LIKE ?
+          OR EXISTS (
+            SELECT 1 FROM vehicle_amenities va
+            WHERE va.vehicle_id = vm.id AND va.amenity_code LIKE ?
+          )
         )
       `;
 
-      countQuery += `
-        AND (
-          vm.code LIKE ?
-          OR vm.vendor LIKE ?
-          OR vm.model LIKE ?
-          OR vm.variant LIKE ?
-          OR vm.veh_no LIKE ?
-          OR vm.garage LIKE ?
-          OR vm.reg_date LIKE ?
-          OR vm.aging LIKE ?
-          OR vm.amenities LIKE ?
-        )
-      `;
-
-      const likeSearch = `%${search}%`;
-
-      params.push(
-        likeSearch,
-        likeSearch,
-        likeSearch,
-        likeSearch,
-        likeSearch,
-        likeSearch,
-        likeSearch,
-        likeSearch,
-        likeSearch,
-      );
-
-      countParams.push(
-        likeSearch,
-        likeSearch,
-        likeSearch,
-        likeSearch,
-        likeSearch,
-        likeSearch,
-        likeSearch,
-        likeSearch,
-        likeSearch,
-      );
+      const like = `%${search}%`;
+      params.push(like, like, like, like, like, like, like);
     }
 
-    // =========================================================
-    // VENDOR FILTER
-    // vehicle_manager.vendor
-    // =========================================================
+    // FILTERS
+    // vendor filter ab vendor_id (comma separated ids) par chalta hai
     if (vendor) {
-      const vendors = toArray(vendor);
-
-      if (vendors.length > 0) {
-        addInClause("vm.vendor", vendors);
-      }
+      const vendorIds = toArray(vendor, true);
+      if (vendorIds.length > 0) addInClause("vm.vendor_id", vendorIds);
     }
 
-    // =========================================================
-    // GARAGE FILTER
-    // vehicle_manager.garage
-    // =========================================================
     if (garage) {
       const garages = toArray(garage);
-
-      if (garages.length > 0) {
-        addInClause("vm.garage", garages);
-      }
+      if (garages.length > 0) addInClause("vm.garage", garages);
     }
 
-    // =========================================================
-    // CITY FILTER
-    // vehicle_manager.city
-    // =========================================================
     if (city) {
       const cities = toArray(city, true);
-
-      if (cities.length > 0) {
-        addInClause("vm.city", cities);
-      }
+      if (cities.length > 0) addInClause("vm.city_id", cities);
     }
 
-    // =========================================================
-    // YEAR FILTER
-    // vehicle_manager.reg_date
-    // =========================================================
     if (year) {
       const years = toArray(year, true);
-
-      if (years.length > 0) {
-        addInClause("YEAR(vm.reg_date)", years);
-      }
+      if (years.length > 0) addInClause("YEAR(vm.reg_date)", years);
     }
 
-    // =========================================================
-    // CODE FILTER
-    // vehicle_manager.code
-    // =========================================================
     if (code) {
       const codes = toArray(code);
-
-      if (codes.length > 0) {
-        addInClause("vm.code", codes);
-      }
+      if (codes.length > 0) addInClause("vm.code", codes);
     }
 
-    // =========================================================
-    // SEAT FILTER
-    // Seat vehicle_master se aayega
-    // =========================================================
     if (seat) {
       const seats = toArray(seat);
-
-      if (seats.length > 0) {
-        addInClause("vmst.seat", seats);
-      }
+      if (seats.length > 0) addInClause("vmst.seat", seats);
     }
 
-    // =========================================================
-    // VARIANT FILTER
-    // IMPORTANT:
-    // Variant vehicle_manager se aayega
-    // =========================================================
     if (variant) {
       const variants = toArray(variant);
-
-      if (variants.length > 0) {
-        addInClause("vm.variant", variants);
-      }
+      if (variants.length > 0) addInClause("vm.variant", variants);
     }
 
-    // =========================================================
-    // CATEGORY FILTER
-    // Category vehicle_master se aayega
-    // =========================================================
     if (category) {
       const categories = toArray(category);
-
-      if (categories.length > 0) {
-        addInClause("vmst.category", categories);
-      }
+      if (categories.length > 0) addInClause("vmst.category", categories);
     }
 
-    // =========================================================
-    // PAGINATION
-    // =========================================================
-    query += `
-      ORDER BY vm.id ASC
-      LIMIT ?
-      OFFSET ?
+    // COUNT (limit/offset se pehle, taaki params same rahein)
+    const countQuery = `
+      SELECT COUNT(*) AS total
+      FROM vehicle_manager vm
+      JOIN vendors v ON v.id = vm.vendor_id
+      LEFT JOIN vehicle_master vmst ON vm.code = vmst.code
+      ${where}
     `;
 
-    params.push(Number(limit), Number(offset));
+    const [countRows] = await pool.query(countQuery, params);
 
-    // =========================================================
-    // EXECUTE MAIN QUERY
-    // =========================================================
-    const [rows] = await pool.query(query, params);
+    // MAIN
+    const mainQuery = `
+      ${BASE_SELECT}
+      ${where}
+      ORDER BY vm.id ASC
+      LIMIT ? OFFSET ?
+    `;
 
-    // =========================================================
-    // EXECUTE COUNT QUERY
-    // =========================================================
-    const [countRows] = await pool.execute(countQuery, countParams);
+    const [rows] = await pool.query(mainQuery, [
+      ...params,
+      Number(limit),
+      Number(offset),
+    ]);
 
-    // =========================================================
-    // CITY NAME FROM HRMS DATABASE
-    // =========================================================
-    const cityIds = [
-      ...new Set(
-        rows
-          .map((r) => r.city)
-          .filter((id) => id !== null && id !== undefined && id !== ""),
-      ),
-    ];
-
-    let cityMap = {};
-
-    if (cityIds.length > 0) {
-      const placeholders = cityIds.map(() => "?").join(",");
-
-      const [cityRows] = await hrmsPool.execute(
-        `
-          SELECT
-            id,
-            city_name
-          FROM city
-          WHERE id IN (${placeholders})
-        `,
-        cityIds,
-      );
-
-      cityMap = cityRows.reduce((acc, city) => {
-        acc[city.id] = city.city_name;
-        return acc;
-      }, {});
-    }
-
-    const dataWithCityName = rows.map((row) => ({
-      ...row,
-
-      city_name: cityMap[row.city] ?? null,
-
-      variant: row.variant ?? null,
-    }));
+    const data = await attachCityNames(rows);
 
     const total = Number(countRows[0]?.total || 0);
     const currentPage = Number(page);
     const currentLimit = Number(limit);
 
     return {
-      data: dataWithCityName,
+      data,
       total,
       page: currentPage,
       limit: currentLimit,
@@ -531,7 +402,6 @@ export const getAllVehicleManagersModel = async ({
     };
   } catch (error) {
     console.error("getAllVehicleManagersModel error:", error);
-
     throw error;
   }
 };
@@ -562,7 +432,6 @@ export const getVehicleMasterCodesModel = async () => {
     return rows;
   } catch (error) {
     console.error("getVehicleMasterCodesModel error:", error);
-
     throw error;
   }
 };
@@ -588,59 +457,48 @@ export const getVehicleMasterAmenitiesModel = async () => {
       }
     });
 
-    const uniqueAmenities = Array.from(amenitiesSet)
+    return Array.from(amenitiesSet)
       .sort((a, b) => a.localeCompare(b))
       .map((name) => ({ name }));
-
-    return uniqueAmenities;
   } catch (error) {
     console.error("getVehicleMasterAmenitiesModel error:", error);
-
     throw error;
   }
 };
 
+// Dropdown: value = id, label = name (duplicate naam alag dikhane ke liye vender_code bhi)
+// Sirf active vendors. Pending/approved bhi chahiye to status wali line hata do
 export const getVehicleManagerVendorsModel = async () => {
   try {
     const [rows] = await pool.execute(`
-      SELECT name
+      SELECT id, vender_code, name, short_name
       FROM vendors
       WHERE name IS NOT NULL
         AND name != ''
-      ORDER BY name ASC
+        AND status = 'active'
+      ORDER BY name ASC, id ASC
     `);
 
     return rows;
   } catch (error) {
     console.error("getVehicleManagerVendorsModel error:", error);
-
     throw error;
   }
 };
 
 export const updateVehicleManagerStatusModel = async ({ id, status }) => {
   try {
-    if (!id) {
-      throw new Error("id is required");
-    }
+    if (!id) throw new Error("id is required");
+    if (!status) throw new Error("status is required");
 
-    if (!status) {
-      throw new Error("status is required");
-    }
-
-    const query = `UPDATE vehicle_manager SET status = ? WHERE id = ?`;
-    const [result] = await pool.execute(query, [status, id]);
-
-    if (result.affectedRows === 0) {
-      return null; // record not found
-    }
-
-    const [rows] = await pool.execute(
-      `SELECT * FROM vehicle_manager WHERE id = ?`,
-      [id],
+    const [result] = await pool.execute(
+      `UPDATE vehicle_manager SET status = ? WHERE id = ?`,
+      [status, id],
     );
 
-    return rows[0];
+    if (result.affectedRows === 0) return null;
+
+    return await getVehicleManagerById(id);
   } catch (error) {
     console.error("updateVehicleManagerStatusModel error:", error);
     throw error;

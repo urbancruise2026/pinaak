@@ -1,247 +1,157 @@
-import {
-  createSlice,
-  createAsyncThunk,
-  PayloadAction,
-} from "@reduxjs/toolkit";
-
-import axios from "axios";
+import { createSlice, createAsyncThunk, PayloadAction } from "@reduxjs/toolkit";
 
 import {
   createVendorAPI,
+  deleteVendorAPI,
+  getAllVendorsAPI,
+  getAllAccessCitiesAPI,
+  getVendorByIdAPI,
   updateVendorAPI,
+  updateVendorStatusAPI,
+  updateVendorVerificationAPI,
+  type CityResponse,
   type VendorResponse,
+  type VendorStatus,
   type VendorUpdateData,
+  type VendorVerification,
 } from "./vendorApi";
 
 import type { VendorFormData } from "./components/vendorComponents/types";
 
-import { baseApi } from "@/lib/commonApi";
+export const createVendorThunk = createAsyncThunk<
+  VendorResponse,
+  VendorFormData,
+  { rejectValue: string }
+>("vendor/createVendor", async (vendorData, { rejectWithValue }) => {
+  try {
+    const response = await createVendorAPI(vendorData);
 
-// ─────────────────────────────────────────────
-// CREATE VENDOR THUNK
-// ─────────────────────────────────────────────
+    return response;
+  } catch (error: any) {
+    return rejectWithValue(error.message || "Failed to create vendor");
+  }
+});
 
-export const createVendorThunk =
-  createAsyncThunk<
-    VendorResponse,
-    VendorFormData,
-    { rejectValue: string }
-  >(
-    "vendor/createVendor",
-    async (
-      vendorData,
-      { rejectWithValue },
-    ) => {
-      try {
-        const response =
-          await createVendorAPI(vendorData);
+export const updateVendorThunk = createAsyncThunk<
+  VendorResponse,
+  {
+    id: number;
+    vendorData: VendorUpdateData;
+  },
+  { rejectValue: string }
+>("vendor/updateVendor", async ({ id, vendorData }, { rejectWithValue }) => {
+  try {
+    const response = await updateVendorAPI(id, vendorData);
 
-        return response;
-      } catch (error: any) {
-        return rejectWithValue(
-          error.message ||
-            "Failed to create vendor",
-        );
-      }
-    },
-  );
+    return response;
+  } catch (error: any) {
+    return rejectWithValue(error.message || "Failed to update vendor");
+  }
+});
 
-// ─────────────────────────────────────────────
-// UPDATE VENDOR THUNK
-// ─────────────────────────────────────────────
+export const getVendorsThunk = createAsyncThunk<
+  VendorResponse[],
+  void,
+  { rejectValue: string }
+>("vendor/getVendors", async (_, { rejectWithValue }) => {
+  try {
+    return await getAllVendorsAPI();
+  } catch (error: any) {
+    return rejectWithValue(error.message || "Failed to fetch vendors");
+  }
+});
 
-export const updateVendorThunk =
-  createAsyncThunk<
-    VendorResponse,
-    {
-      id: number;
-      vendorData: VendorUpdateData;
-    },
-    { rejectValue: string }
-  >(
-    "vendor/updateVendor",
-    async (
-      { id, vendorData },
-      { rejectWithValue },
-    ) => {
-      try {
-        const response =
-          await updateVendorAPI(
-            id,
-            vendorData,
-          );
+export const getVendorByIdThunk = createAsyncThunk<
+  VendorResponse | null,
+  number,
+  { rejectValue: string }
+>("vendor/getVendorById", async (id, { rejectWithValue }) => {
+  try {
+    return await getVendorByIdAPI(id);
+  } catch (error: any) {
+    return rejectWithValue(error.message || "Failed to fetch vendor");
+  }
+});
 
-        return response;
-      } catch (error: any) {
-        return rejectWithValue(
-          error.message ||
-            "Failed to update vendor",
-        );
-      }
-    },
-  );
+export const updateVendorStatusThunk = createAsyncThunk<
+  { id: number; status: VendorStatus },
+  { id: number; status: VendorStatus },
+  { rejectValue: string }
+>("vendor/updateStatus", async ({ id, status }, { rejectWithValue }) => {
+  try {
+    return await updateVendorStatusAPI(id, status);
+  } catch (error: any) {
+    return rejectWithValue(error.message || "Failed to update status");
+  }
+});
 
-// ─────────────────────────────────────────────
-// GET ALL VENDORS THUNK
-// ─────────────────────────────────────────────
+export const updateVendorVerificationThunk = createAsyncThunk<
+  { id: number; verification: VendorVerification },
+  { id: number; verification: VendorVerification },
+  { rejectValue: string }
+>(
+  "vendor/updateVerification",
+  async ({ id, verification }, { rejectWithValue }) => {
+    try {
+      return await updateVendorVerificationAPI(id, verification);
+    } catch (error: any) {
+      return rejectWithValue(error.message || "Failed to update verification");
+    }
+  },
+);
+export const deleteVendorThunk = createAsyncThunk<
+  number,
+  number,
+  { rejectValue: string }
+>("vendor/delete", async (id, { rejectWithValue }) => {
+  try {
+    return await deleteVendorAPI(id);
+  } catch (error: any) {
+    return rejectWithValue(error.message || "Failed to delete vendor");
+  }
+});
 
-export const getVendorsThunk =
-  createAsyncThunk<
-    VendorResponse[],
-    void,
-    { rejectValue: string }
-  >(
-    "vendor/getVendors",
-    async (
-      _,
-      { rejectWithValue },
-    ) => {
-      try {
-        const response = await axios.get(
-          `${baseApi}/vendor`,
-          {
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-          },
-        );
-
-        if (
-          response.data?.data?.vendors
-        ) {
-          return response.data.data.vendors;
-        }
-
-        if (Array.isArray(response.data?.data)) {
-          return response.data.data;
-        }
-
-        if (Array.isArray(response.data)) {
-          return response.data;
-        }
-
-        return [];
-      } catch (error: any) {
-        console.error(
-          "Get vendors error:",
-          error,
-        );
-
-        return rejectWithValue(
-          error.response?.data?.message ||
-            "Failed to fetch vendors",
-        );
-      }
-    },
-  );
-
-// ─────────────────────────────────────────────
-// GET VENDOR BY ID THUNK
-// ─────────────────────────────────────────────
-
-export const getVendorByIdThunk =
-  createAsyncThunk<
-    VendorResponse | null,
-    number,
-    { rejectValue: string }
-  >(
-    "vendor/getVendorById",
-    async (
-      id,
-      { rejectWithValue },
-    ) => {
-      try {
-        const response = await axios.get(
-          `${baseApi}/vendor/${id}`,
-          {
-            headers: {
-              "Content-Type":
-                "application/json",
-            },
-          },
-        );
-
-        if (
-          response.data?.data?.vendor
-        ) {
-          return response.data.data.vendor;
-        }
-
-        if (response.data?.data) {
-          return response.data.data;
-        }
-
-        if (response.data?.vendor) {
-          return response.data.vendor;
-        }
-
-        return response.data;
-      } catch (error: any) {
-        console.error(
-          "Get vendor by ID error:",
-          error,
-        );
-
-        return rejectWithValue(
-          error.response?.data?.message ||
-            "Failed to fetch vendor",
-        );
-      }
-    },
-  );
-
-// ─────────────────────────────────────────────
-// VENDOR STATE
-// ─────────────────────────────────────────────
+export const getAllAccessCitiesThunk = createAsyncThunk<
+  CityResponse[],
+  void,
+  { rejectValue: string }
+>("vendor/getAllAccessCities", async (_, { rejectWithValue }) => {
+  try {
+    return await getAllAccessCitiesAPI();
+  } catch (error: any) {
+    return rejectWithValue(error.message || "Failed to fetch cities");
+  }
+});
 
 interface VendorState {
   vendors: VendorResponse[];
 
-  currentVendor:
-    | VendorResponse
-    | null;
+  cities: CityResponse[];
+  citiesLoading: boolean;
 
-  selectedVendor:
-    | VendorResponse
-    | null;
-
+  currentVendor: VendorResponse | null;
+  selectedVendor: VendorResponse | null;
   loading: boolean;
-
   error: string | null;
-
   successMessage: string | null;
-
   isSuccess: boolean;
-
   vendorId: number | null;
 }
-
-// ─────────────────────────────────────────────
-// INITIAL STATE
-// ─────────────────────────────────────────────
 
 const initialState: VendorState = {
   vendors: [],
 
+  cities: [],
+  citiesLoading: false,
+
   currentVendor: null,
-
   selectedVendor: null,
-
   loading: false,
-
   error: null,
-
   successMessage: null,
-
   isSuccess: false,
-
   vendorId: null,
 };
-
-// ─────────────────────────────────────────────
-// SLICE
-// ─────────────────────────────────────────────
 
 const vendorSlice = createSlice({
   name: "vendor",
@@ -258,14 +168,8 @@ const vendorSlice = createSlice({
       state.error = null;
     },
 
-    setCurrentVendor: (
-      state,
-      action: PayloadAction<
-        VendorResponse | null
-      >,
-    ) => {
-      state.currentVendor =
-        action.payload;
+    setCurrentVendor: (state, action: PayloadAction<VendorResponse | null>) => {
+      state.currentVendor = action.payload;
     },
 
     clearSelectedVendor: (state) => {
@@ -274,6 +178,8 @@ const vendorSlice = createSlice({
 
     clearVendorState: (state) => {
       state.vendors = [];
+      state.cities = [];
+      state.citiesLoading = false;
       state.currentVendor = null;
       state.selectedVendor = null;
       state.loading = false;
@@ -287,190 +193,184 @@ const vendorSlice = createSlice({
   extraReducers: (builder) => {
     builder
 
+      .addCase(createVendorThunk.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.successMessage = null;
+        state.isSuccess = false;
+      })
+
+      .addCase(createVendorThunk.fulfilled, (state, action) => {
+        state.loading = false;
+        state.currentVendor = action.payload;
+        state.selectedVendor = action.payload;
+        state.vendorId = action.payload?.id ?? null;
+        state.successMessage =
+          action.payload?.message || "Vendor created successfully";
+        state.isSuccess = true;
+      })
+
+      .addCase(createVendorThunk.rejected, (state, action) => {
+        state.loading = false;
+
+        state.error = action.payload || "Failed to create vendor";
+
+        state.isSuccess = false;
+      })
+
+      .addCase(updateVendorThunk.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+        state.successMessage = null;
+        state.isSuccess = false;
+      })
+
+      .addCase(updateVendorThunk.fulfilled, (state) => {
+        state.loading = false;
+        state.successMessage = "Vendor updated successfully";
+        state.isSuccess = true;
+      })
+
+      .addCase(updateVendorThunk.rejected, (state, action) => {
+        state.loading = false;
+
+        state.error = action.payload || "Failed to update vendor";
+
+        state.isSuccess = false;
+      })
+
+      .addCase(getVendorsThunk.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+
+      .addCase(getVendorsThunk.fulfilled, (state, action) => {
+        state.loading = false;
+        state.vendors = action.payload;
+        state.error = null;
+      })
+
+      .addCase(getVendorsThunk.rejected, (state, action) => {
+        state.loading = false;
+
+        state.error = action.payload || "Failed to fetch vendors";
+      })
+
+      .addCase(getVendorByIdThunk.pending, (state) => {
+        state.loading = true;
+        state.error = null;
+      })
+
+      .addCase(getVendorByIdThunk.fulfilled, (state, action) => {
+        state.loading = false;
+
+        state.currentVendor = action.payload;
+
+        state.selectedVendor = action.payload;
+
+        state.vendorId = action.payload?.id ?? null;
+
+        state.error = null;
+      })
+
+      .addCase(getVendorByIdThunk.rejected, (state, action) => {
+        state.loading = false;
+
+        state.error = action.payload || "Failed to fetch vendor";
+      })
       // ═══════════════════════════════════════
-      // CREATE VENDOR
-      // ═══════════════════════════════════════
-
-      .addCase(
-        createVendorThunk.pending,
-        (state) => {
-          state.loading = true;
-          state.error = null;
-          state.successMessage = null;
-          state.isSuccess = false;
-        },
-      )
-
-     .addCase(
-  createVendorThunk.fulfilled,
-  (state, action) => {
-    state.loading = false;
-
-    state.vendors.push(action.payload);
-
-    state.currentVendor = action.payload;
-
-    state.selectedVendor = action.payload;
-
-    state.vendorId = action.payload.id ?? null;
-
-    state.successMessage =
-      action.payload.message ||
-      "Vendor created successfully";
-
-    state.isSuccess = true;
-  },
-)
-
-
-      .addCase(
-        createVendorThunk.rejected,
-        (state, action) => {
-          state.loading = false;
-
-          state.error =
-            action.payload ||
-            "Failed to create vendor";
-
-          state.isSuccess = false;
-        },
-      )
-
-      // ═══════════════════════════════════════
-      // UPDATE VENDOR
-      // ═══════════════════════════════════════
-
-      .addCase(
-        updateVendorThunk.pending,
-        (state) => {
-          state.loading = true;
-          state.error = null;
-          state.successMessage = null;
-          state.isSuccess = false;
-        },
-      )
-
-      .addCase(
-  updateVendorThunk.fulfilled,
-  (state, action) => {
-    state.loading = false;
-
-    const index = state.vendors.findIndex(
-      (vendor) =>
-        vendor.id === action.payload.id,
-    );
-
-    if (index !== -1) {
-      state.vendors[index] = action.payload;
-    }
-
-    state.currentVendor = action.payload;
-
-    state.selectedVendor = action.payload;
-
-    state.vendorId = action.payload.id ?? null;
-
-    state.successMessage =
-      "Vendor updated successfully";
-
-    state.isSuccess = true;
-  },
-)
-
-
-      .addCase(
-        updateVendorThunk.rejected,
-        (state, action) => {
-          state.loading = false;
-
-          state.error =
-            action.payload ||
-            "Failed to update vendor";
-
-          state.isSuccess = false;
-        },
-      )
-
-      // ═══════════════════════════════════════
-      // GET ALL VENDORS
+      // UPDATE VENDOR STATUS
       // ═══════════════════════════════════════
 
-      .addCase(
-        getVendorsThunk.pending,
-        (state) => {
-          state.loading = true;
-          state.error = null;
-        },
-      )
+      .addCase(updateVendorStatusThunk.pending, (state) => {
+        state.error = null;
+        state.successMessage = null;
+      })
 
-      .addCase(
-        getVendorsThunk.fulfilled,
-        (state, action) => {
-          state.loading = false;
-          state.vendors =
-            action.payload;
-          state.error = null;
-        },
-      )
+      .addCase(updateVendorStatusThunk.fulfilled, (state, action) => {
+        const vendor = state.vendors.find(
+          (x: any) => x.id === action.payload.id,
+        );
+        if (vendor) (vendor as any).status = action.payload.status;
 
-      .addCase(
-        getVendorsThunk.rejected,
-        (state, action) => {
-          state.loading = false;
+        state.successMessage = `Vendor marked ${action.payload.status}`;
+        state.isSuccess = true;
+      })
 
-          state.error =
-            action.payload ||
-            "Failed to fetch vendors";
-        },
-      )
+      .addCase(updateVendorStatusThunk.rejected, (state, action) => {
+        state.error = action.payload || "Failed to update status";
+        state.isSuccess = false;
+      })
 
       // ═══════════════════════════════════════
-      // GET VENDOR BY ID
+      // DELETE VENDOR
       // ═══════════════════════════════════════
 
-      .addCase(
-        getVendorByIdThunk.pending,
-        (state) => {
-          state.loading = true;
-          state.error = null;
-        },
-      )
+      .addCase(deleteVendorThunk.pending, (state) => {
+        state.error = null;
+        state.successMessage = null;
+      })
 
-      .addCase(
-        getVendorByIdThunk.fulfilled,
-        (state, action) => {
-          state.loading = false;
+      .addCase(deleteVendorThunk.fulfilled, (state, action) => {
+        state.vendors = state.vendors.filter(
+          (x: any) => x.id !== action.payload,
+        );
 
-          state.currentVendor =
-            action.payload;
+        if (state.selectedVendor?.id === action.payload) {
+          state.selectedVendor = null;
+        }
+        if (state.currentVendor?.id === action.payload) {
+          state.currentVendor = null;
+        }
 
-          state.selectedVendor =
-            action.payload;
+        state.successMessage = "Vendor deleted successfully";
+        state.isSuccess = true;
+      })
 
-          state.vendorId =
-            action.payload?.id ??
-            null;
+      .addCase(deleteVendorThunk.rejected, (state, action) => {
+        state.error = action.payload || "Failed to delete vendor";
+        state.isSuccess = false;
+      })
+      .addCase(getAllAccessCitiesThunk.pending, (state) => {
+        state.citiesLoading = true;
+        state.error = null;
+      })
 
-          state.error = null;
-        },
-      )
+      .addCase(getAllAccessCitiesThunk.fulfilled, (state, action) => {
+        state.citiesLoading = false;
+        state.cities = action.payload;
+        state.error = null;
+      })
 
-      .addCase(
-        getVendorByIdThunk.rejected,
-        (state, action) => {
-          state.loading = false;
+      .addCase(getAllAccessCitiesThunk.rejected, (state, action) => {
+        state.citiesLoading = false;
+        state.error = action.payload || "Failed to fetch cities";
+      })
+      // ═══════════════════════════════════════
+      // UPDATE VENDOR VERIFICATION
+      // ═══════════════════════════════════════
 
-          state.error =
-            action.payload ||
-            "Failed to fetch vendor";
-        },
-      );
+      .addCase(updateVendorVerificationThunk.pending, (state) => {
+        state.error = null;
+        state.successMessage = null;
+      })
+
+      .addCase(updateVendorVerificationThunk.fulfilled, (state, action) => {
+        const vendor = state.vendors.find(
+          (x: any) => x.id === action.payload.id,
+        );
+        if (vendor) (vendor as any).verification = action.payload.verification;
+
+        state.successMessage = `Verification marked ${action.payload.verification}`;
+        state.isSuccess = true;
+      })
+
+      .addCase(updateVendorVerificationThunk.rejected, (state, action) => {
+        state.error = action.payload || "Failed to update verification";
+        state.isSuccess = false;
+      });
   },
 });
-
-// ─────────────────────────────────────────────
-// EXPORT ACTIONS
-// ─────────────────────────────────────────────
 
 export const {
   resetSuccess,
@@ -479,9 +379,5 @@ export const {
   clearSelectedVendor,
   clearVendorState,
 } = vendorSlice.actions;
-
-// ─────────────────────────────────────────────
-// EXPORT REDUCER
-// ─────────────────────────────────────────────
 
 export default vendorSlice.reducer;

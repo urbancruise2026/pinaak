@@ -1,7 +1,26 @@
 "use client";
 
 import React from "react";
-import { X, Loader2 } from "lucide-react";
+import {
+  X,
+  Loader2,
+  Car,
+  Hash,
+  Armchair,
+  Tag,
+  Layers,
+  Settings2,
+  FileText,
+  MapPin,
+  Building2,
+  Warehouse,
+  CalendarDays,
+  Clock,
+  ShieldCheck,
+  Sparkles,
+  Info,
+  Users,
+} from "lucide-react";
 import type { Vehicle } from "@/types/types";
 
 interface VehicleManagerModelProps {
@@ -19,28 +38,96 @@ type DetailValue = string | number | null | undefined;
 
 type VehicleRecord = Record<string, unknown>;
 
+type SectionTheme = {
+  card: string;
+  header: string;
+  title: string;
+  iconWrap: string;
+};
+
 // =====================================================
-// DETAIL ROW
+// THEMES (section wise colors)
 // =====================================================
 
-const DetailRow: React.FC<{
+const THEMES: Record<"blue" | "cyan" | "purple", SectionTheme> = {
+  blue: {
+    card: "border-blue-200 bg-blue-50/40",
+    header: "border-blue-200 bg-blue-50",
+    title: "text-blue-900",
+    iconWrap: "bg-blue-100 text-blue-600",
+  },
+  cyan: {
+    card: "border-cyan-200 bg-cyan-50/40",
+    header: "border-cyan-200 bg-cyan-50",
+    title: "text-cyan-900",
+    iconWrap: "bg-cyan-100 text-cyan-600",
+  },
+  purple: {
+    card: "border-purple-200 bg-purple-50/40",
+    header: "border-purple-200 bg-purple-50",
+    title: "text-purple-900",
+    iconWrap: "bg-purple-100 text-purple-600",
+  },
+};
+
+// =====================================================
+// SECTION CARD
+// =====================================================
+
+const Section: React.FC<{
+  title: string;
+  icon: React.ReactNode;
+  theme: keyof typeof THEMES;
+  children: React.ReactNode;
+}> = ({ title, icon, theme, children }) => {
+  const t = THEMES[theme];
+
+  return (
+    <div className={`mb-4 overflow-hidden rounded-xl border ${t.card}`}>
+      <div
+        className={`flex items-center gap-2.5 border-b px-5 py-3.5 ${t.header}`}
+      >
+        <span className={t.title}>{icon}</span>
+        <h3 className={`text-base font-bold ${t.title}`}>{title}</h3>
+      </div>
+
+      <div className="p-5">{children}</div>
+    </div>
+  );
+};
+
+// =====================================================
+// DETAIL FIELD (icon circle + label + value)
+// =====================================================
+
+const Field: React.FC<{
   label: string;
+  icon: React.ReactNode;
+  theme: keyof typeof THEMES;
   value?: DetailValue;
-}> = ({ label, value }) => {
+  children?: React.ReactNode;
+}> = ({ label, icon, theme, value, children }) => {
+  const t = THEMES[theme];
+
   const displayValue =
     value !== undefined && value !== null && String(value).trim() !== ""
       ? String(value)
-      : "-";
+      : "—";
 
   return (
-    <div className="border-b border-gray-100 py-3">
-      <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-gray-400">
-        {label}
-      </p>
+    <div className="flex items-start gap-3">
+      <div
+        className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${t.iconWrap}`}
+      >
+        {icon}
+      </div>
 
-      <p className="break-words text-sm font-semibold text-gray-800">
-        {displayValue}
-      </p>
+      <div className="min-w-0">
+        <p className="text-xs font-medium text-slate-500">{label}</p>
+        <div className="break-words text-sm font-bold text-slate-900">
+          {children ?? displayValue}
+        </div>
+      </div>
     </div>
   );
 };
@@ -114,10 +201,6 @@ const getVehicleValue = (
 
   const root = vehicle as unknown as VehicleRecord;
 
-  // ---------------------------------------------------
-  // DIRECT VEHICLE OBJECT
-  // ---------------------------------------------------
-
   const directValue = getFromObject(root, keys);
 
   if (
@@ -127,10 +210,6 @@ const getVehicleValue = (
   ) {
     return directValue;
   }
-
-  // ---------------------------------------------------
-  // COMMON NESTED OBJECTS
-  // ---------------------------------------------------
 
   const nestedKeys = [
     "vehicle",
@@ -172,7 +251,7 @@ const getVehicleValue = (
 
 const formatDate = (value: DetailValue): string => {
   if (value === undefined || value === null || String(value).trim() === "") {
-    return "-";
+    return "—";
   }
 
   const rawValue = String(value).trim();
@@ -196,7 +275,7 @@ const formatDate = (value: DetailValue): string => {
 
 const formatAging = (value: DetailValue): React.ReactNode => {
   if (value === undefined || value === null || String(value).trim() === "") {
-    return "-";
+    return "—";
   }
 
   const rawValue = String(value).trim();
@@ -208,7 +287,7 @@ const formatAging = (value: DetailValue): React.ReactNode => {
   }
 
   if (numericValue < 0) {
-    return "-";
+    return "—";
   }
 
   const years = Math.floor(numericValue);
@@ -237,15 +316,28 @@ const formatAging = (value: DetailValue): React.ReactNode => {
 };
 
 // =====================================================
-// DISPLAY TEXT
+// AMENITIES PARSER
 // =====================================================
 
-const displayText = (value: DetailValue): string => {
-  if (value === undefined || value === null || String(value).trim() === "") {
-    return "-";
-  }
+const parseAmenities = (value: DetailValue): string[] =>
+  String(value ?? "")
+    .split(",")
+    .map((item) => item.trim())
+    .filter(Boolean);
 
-  return String(value);
+// =====================================================
+// STATUS BADGE STYLES
+// =====================================================
+
+const getStatusStyle = (status: string) => {
+  switch (status.toLowerCase()) {
+    case "suspended":
+      return { badge: "bg-yellow-100 text-yellow-700", dot: "bg-yellow-500" };
+    case "blocked":
+      return { badge: "bg-red-100 text-red-700", dot: "bg-red-500" };
+    default:
+      return { badge: "bg-green-100 text-green-700", dot: "bg-green-500" };
+  }
 };
 
 // =====================================================
@@ -345,40 +437,73 @@ const VehicleManagerModel: React.FC<VehicleManagerModelProps> = ({
     "vehicle_amenities",
   ]);
 
+  const amenitiesList = parseAmenities(amenities);
+
+  const statusText =
+    status && String(status).trim() !== "" ? String(status) : "Active";
+
+  const statusStyle = getStatusStyle(statusText);
+
+  const hasCode = code && String(code).trim() !== "" && code !== "-";
+
   // ===================================================
   // RENDER
   // ===================================================
 
   return (
     <div
-      className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4 backdrop-blur-sm"
+      className="fixed inset-0 z-[9999] flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
       onClick={onClose}
     >
       <div
         role="dialog"
         aria-modal="true"
         aria-labelledby="vehicle-manager-modal-title"
-        className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        className="relative flex max-h-[90vh] w-full max-w-4xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         {/* =================================================
             HEADER
         ================================================= */}
 
-        <div className="flex shrink-0 items-center justify-between border-b border-orange-200 bg-orange-500 px-6 py-4">
-          <div className="min-w-0">
-            <h2
-              id="vehicle-manager-modal-title"
-              className="text-lg font-bold text-white"
-            >
-              Vehicle Manager Details
-            </h2>
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-slate-200 bg-white px-6 py-5">
+          <div className="flex min-w-0 items-center gap-4">
+            <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
+              <Car size={30} />
+            </div>
 
-            <p className="mt-0.5 truncate text-xs text-orange-100">
-              {code && String(code).trim() !== "" && code !== "-"
-                ? `Vehicle Code: ${String(code)}`
-                : "Vehicle details"}
-            </p>
+            <div className="min-w-0">
+              <h2
+                id="vehicle-manager-modal-title"
+                className="truncate text-xl font-extrabold text-slate-900"
+              >
+                {hasCode ? String(code) : "Vehicle Manager Details"}
+              </h2>
+
+              <p className="truncate text-sm text-slate-500">
+                Vehicle ID: {vehicleId ?? "—"}
+                {category ? ` · ${String(category)}` : ""}
+              </p>
+
+              {vehicle && !loading && !error && (
+                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                  <span
+                    className={`flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-semibold ${statusStyle.badge}`}
+                  >
+                    <span
+                      className={`h-1.5 w-1.5 rounded-full ${statusStyle.dot}`}
+                    />
+                    {statusText}
+                  </span>
+
+                  {variant && (
+                    <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-xs font-semibold text-blue-700">
+                      {String(variant)}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
 
           <button
@@ -386,9 +511,9 @@ const VehicleManagerModel: React.FC<VehicleManagerModelProps> = ({
             onClick={onClose}
             title="Close"
             aria-label="Close vehicle details"
-            className="ml-4 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 text-white transition hover:bg-white hover:text-orange-600"
+            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-red-500 text-white shadow-md transition hover:bg-red-600"
           >
-            <X size={19} />
+            <X size={20} />
           </button>
         </div>
 
@@ -396,24 +521,20 @@ const VehicleManagerModel: React.FC<VehicleManagerModelProps> = ({
             CONTENT
         ================================================= */}
 
-        <div className="flex-1 overflow-y-auto p-6">
-          {/* =================================================
-              LOADING
-          ================================================= */}
+        <div className="flex-1 overflow-y-auto bg-slate-50/50 p-5">
+          {/* LOADING */}
 
           {loading && (
             <div className="flex min-h-[300px] flex-col items-center justify-center gap-3">
-              <Loader2 size={30} className="animate-spin text-orange-500" />
+              <Loader2 size={30} className="animate-spin text-indigo-500" />
 
-              <p className="text-sm font-semibold text-gray-500">
+              <p className="text-sm font-semibold text-slate-500">
                 Loading vehicle details...
               </p>
             </div>
           )}
 
-          {/* =================================================
-              ERROR
-          ================================================= */}
+          {/* ERROR */}
 
           {!loading && error && (
             <div className="rounded-xl border border-red-200 bg-red-50 p-5">
@@ -421,104 +542,159 @@ const VehicleManagerModel: React.FC<VehicleManagerModelProps> = ({
             </div>
           )}
 
-          {/* =================================================
-              DATA
-          ================================================= */}
+          {/* DATA */}
 
           {!loading && !error && vehicle && (
             <>
-              {/* =================================================
-                  VEHICLE DETAILS
-              ================================================= */}
+              {/* VEHICLE DETAILS */}
 
-              <div className="mb-6">
-                <h3 className="mb-3 border-l-4 border-orange-500 pl-3 text-sm font-bold text-gray-800">
-                  Vehicle Details
-                </h3>
+              <Section
+                title="Vehicle Details"
+                theme="blue"
+                icon={<Info size={18} />}
+              >
+                <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field
+                    label="Vehicle ID"
+                    theme="blue"
+                    icon={<Hash size={18} />}
+                    value={vehicleId}
+                  />
 
-                <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
-                  <DetailRow label="Vehicle ID" value={vehicleId} />
+                  <Field
+                    label="Code"
+                    theme="blue"
+                    icon={<Tag size={18} />}
+                    value={code}
+                  />
 
-                  <DetailRow label="Code" value={code} />
+                  <Field
+                    label="Seater"
+                    theme="blue"
+                    icon={<Armchair size={18} />}
+                    value={seat}
+                  />
 
-                  <DetailRow label="Seater" value={seat} />
+                  <Field
+                    label="Category"
+                    theme="blue"
+                    icon={<Layers size={18} />}
+                    value={category}
+                  />
 
-                  <DetailRow label="Category" value={category} />
+                  <Field
+                    label="Variant"
+                    theme="blue"
+                    icon={<Car size={18} />}
+                    value={variant}
+                  />
 
-                  <DetailRow label="Variant" value={variant} />
+                  <Field
+                    label="Config"
+                    theme="blue"
+                    icon={<Settings2 size={18} />}
+                    value={config}
+                  />
 
-                  <DetailRow label="Config" value={config} />
-
-                  <DetailRow label="Vehicle Number" value={vehicleNumber} />
+                  <Field
+                    label="Vehicle Number"
+                    theme="blue"
+                    icon={<FileText size={18} />}
+                    value={vehicleNumber}
+                  />
                 </div>
-              </div>
+              </Section>
 
-              {/* =================================================
-                  MANAGER DETAILS
-              ================================================= */}
+              {/* MANAGER DETAILS */}
 
-              <div className="mb-6">
-                <h3 className="mb-3 border-l-4 border-orange-500 pl-3 text-sm font-bold text-gray-800">
-                  Manager Details
-                </h3>
+              <Section
+                title="Manager Details"
+                theme="cyan"
+                icon={<Users size={18} />}
+              >
+                <div className="grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <Field
+                    label="City"
+                    theme="cyan"
+                    icon={<MapPin size={18} />}
+                    value={city}
+                  />
 
-                <div className="grid grid-cols-1 gap-x-8 sm:grid-cols-2 lg:grid-cols-3">
-                  <DetailRow label="City" value={city} />
+                  <Field
+                    label="Vendor"
+                    theme="cyan"
+                    icon={<Building2 size={18} />}
+                    value={vendor}
+                  />
 
-                  <DetailRow label="Vendor" value={vendor} />
+                  <Field
+                    label="Garage"
+                    theme="cyan"
+                    icon={<Warehouse size={18} />}
+                    value={garage}
+                  />
 
-                  <DetailRow label="Garage" value={garage} />
-
-                  <DetailRow
+                  <Field
                     label="Registration Date"
+                    theme="cyan"
+                    icon={<CalendarDays size={18} />}
                     value={formatDate(registrationDate)}
                   />
 
-                  {/* Aging */}
-                  <div className="border-b border-gray-100 py-3">
-                    <p className="mb-1 text-[11px] font-bold uppercase tracking-wide text-gray-400">
-                      Aging
+                  <Field label="Aging" theme="cyan" icon={<Clock size={18} />}>
+                    {formatAging(aging)}
+                  </Field>
+
+                  <Field
+                    label="Status"
+                    theme="cyan"
+                    icon={<ShieldCheck size={18} />}
+                    value={status}
+                  />
+                </div>
+              </Section>
+
+              {/* AMENITIES */}
+
+              <Section
+                title="Amenities"
+                theme="purple"
+                icon={<Sparkles size={18} />}
+              >
+                {amenitiesList.length === 0 ? (
+                  <p className="text-sm font-semibold text-slate-500">—</p>
+                ) : (
+                  <>
+                    <p className="mb-3 text-xs font-semibold text-purple-700">
+                      {amenitiesList.length} amenities
                     </p>
 
-                    <p className="break-words text-sm font-semibold text-gray-800">
-                      {formatAging(aging)}
-                    </p>
-                  </div>
-
-                  <DetailRow label="Status" value={status} />
-                </div>
-              </div>
-
-              {/* =================================================
-                  AMENITIES
-              ================================================= */}
-
-              <div className="mb-6">
-                <h3 className="mb-3 border-l-4 border-orange-500 pl-3 text-sm font-bold text-gray-800">
-                  Amenities
-                </h3>
-
-                <div className="rounded-xl border border-gray-200 bg-gray-50 p-4">
-                  <p className="whitespace-pre-wrap break-words text-sm leading-6 text-gray-700">
-                    {displayText(amenities)}
-                  </p>
-                </div>
-              </div>
+                    <div className="flex flex-wrap gap-2">
+                      {amenitiesList.map((item, index) => (
+                        <span
+                          key={`${item}-${index}`}
+                          className="rounded-full border border-purple-200 bg-purple-100 px-3 py-1.5 text-xs font-bold text-purple-700"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                  </>
+                )}
+              </Section>
             </>
           )}
 
-          {/* =================================================
-              NO DATA
-          ================================================= */}
+          {/* NO DATA */}
 
           {!loading && !error && !vehicle && (
             <div className="flex min-h-[250px] items-center justify-center text-center">
               <div>
-                <p className="font-semibold text-gray-600">
+                <p className="font-semibold text-slate-600">
                   No vehicle details found
                 </p>
 
-                <p className="mt-1 text-sm text-gray-400">
+                <p className="mt-1 text-sm text-slate-400">
                   Vehicle information is not available.
                 </p>
               </div>

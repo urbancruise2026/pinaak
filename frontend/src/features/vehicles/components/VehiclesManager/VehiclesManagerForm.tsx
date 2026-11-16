@@ -29,16 +29,16 @@ import {
 import { AMENITIES_OPTIONS } from "../VehiclesMaster/vehicleMasterDropdown";
 import FormPageHeader from "@/components/ui/PageHeader/FormPageHeader";
 
+// model aur aging hata diye gaye hain:
+// - model: ab table mein nahi hai
+// - aging: backend reg_date se calculate karta hai
 interface VehicleFormData {
   code: string;
-  vendor: string;
-  model: string;
+  vendor: string; // dropdown ka label (name + vendor code), save par vendor_id bhejte hain
   veh_no: string;
   reg_date: string;
   garage: string;
-  aging: string;
-  amenities: string;
-  city: string;
+  city: string; // city_id as string
   variant: string;
 }
 
@@ -79,12 +79,9 @@ const SELECT_WRAP =
 const initialFormState: VehicleFormData = {
   code: "",
   vendor: "",
-  model: "",
   veh_no: "",
   reg_date: "",
   garage: "",
-  aging: "",
-  amenities: "",
   city: "",
   variant: "",
 };
@@ -98,6 +95,10 @@ const toDateInput = (raw?: string | null) => {
   const p = (n: number) => String(n).padStart(2, "0");
   return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 };
+
+// Same naam ke kai vendors ho sakte hain (e.g. "Urban Cruise"), isliye
+// label mein vendor code jodte hain taaki har option unique rahe
+const vendorLabel = (v: any) => `${v.name} (${v.vender_code || `ID ${v.id}`})`;
 
 const inputClass = (theme: SectionTheme) =>
   `w-full py-2.5 pl-10 pr-3 text-sm text-gray-800 bg-white border rounded-lg outline-none transition placeholder:text-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100 ${theme.field}`;
@@ -167,17 +168,27 @@ const VehicleForm: React.FC<{
     citiesLoading,
   } = useSelector((state: RootState) => state.vehicleManager);
 
+  // vendors: [{ id, vender_code, name, short_name }]
+  const vendorList = vendors as any[];
+  const vendorOptions = vendorList.map((v) => vendorLabel(v));
+  const getVendorId = (label: string) =>
+    vendorList.find((v) => vendorLabel(v) === label)?.id;
+
   const [formData, setFormData] = useState<VehicleFormData>(() =>
     vehicle
       ? {
           ...initialFormState,
           code: vehicle.code ?? "",
-          vendor: vehicle.vendor ?? "",
-          model: vehicle.model ?? "",
+          vendor: "", // edit mein vendor_id se neeche effect set karega
           veh_no: vehicle.veh_no ?? "",
           reg_date: toDateInput(vehicle.reg_date),
           garage: vehicle.garage ?? "",
-          city: vehicle.city != null ? String(vehicle.city) : "",
+          city:
+            vehicle.city_id != null
+              ? String(vehicle.city_id)
+              : vehicle.city != null
+                ? String(vehicle.city)
+                : "",
           variant: vehicle.variant ?? "",
         }
       : initialFormState,
@@ -203,6 +214,16 @@ const VehicleForm: React.FC<{
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dispatch]);
+
+  // Edit mode: vendors load hone ke baad purana vendor preselect karo
+  useEffect(() => {
+    if (!isEdit || !vehicle?.vendor_id || vendorList.length === 0) return;
+    const match = vendorList.find((v) => v.id === vehicle.vendor_id);
+    if (match) {
+      setFormData((prev) => ({ ...prev, vendor: vendorLabel(match) }));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [vendors, isEdit, vehicle?.vendor_id]);
 
   const setField = useCallback(
     (name: string, value: string) => {
@@ -249,6 +270,13 @@ const VehicleForm: React.FC<{
       setErrorMsg("Please select a code first.");
       return;
     }
+
+    const vendorId = getVendorId(formData.vendor);
+    if (!vendorId) {
+      setErrorMsg("Please select a vendor.");
+      return;
+    }
+
     if (!formData.variant) {
       setErrorMsg("Please select a variant.");
       return;
@@ -257,8 +285,14 @@ const VehicleForm: React.FC<{
     setIsSubmitting(true);
     try {
       const payload = {
-        ...formData,
-        amenities: selectedAmenities.join(","),
+        code: formData.code,
+        vendor_id: vendorId,
+        variant: formData.variant,
+        veh_no: formData.veh_no,
+        reg_date: formData.reg_date,
+        garage: formData.garage,
+        city_id: formData.city ? Number(formData.city) : null,
+        amenities: selectedAmenities, // array: backend vehicle_amenities mein save karta hai
       };
 
       if (isEdit) {
@@ -350,7 +384,7 @@ const VehicleForm: React.FC<{
                 label="Vendor Name"
                 name="vendor"
                 value={formData.vendor}
-                options={vendors.map((item) => item.name)}
+                options={vendorOptions}
                 onChange={handleSelectChange}
                 loading={vendorsLoading}
                 placeholder="Select Vendor"
@@ -446,9 +480,9 @@ const VehicleForm: React.FC<{
                   {citiesLoading ? "Loading cities..." : "Select City"}
                 </option>
                 {cities.length > 0
-                  ? cities.map((city) => (
+                  ? (cities as any[]).map((city) => (
                       <option key={city.id} value={city.id}>
-                        {city.name}
+                        {city.name ?? city.city_name}
                       </option>
                     ))
                   : !citiesLoading && (

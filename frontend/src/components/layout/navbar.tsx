@@ -157,7 +157,7 @@ const MASTER_MENU_SECTIONS: MenuSection[] = [
         value: "vendor",
       },
       {
-        label: "Vendor Search",
+        label: "Vendor Master",
         value: "vendor-table",
       },
     ],

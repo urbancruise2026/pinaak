@@ -98,6 +98,7 @@ export interface VendorFormData {
   // Documents
   passportPhoto: string;
   panDoc: string;
+  adharDoc: string;
   gstDoc: string;
   vendorProof: string;
   vehicleDoc: string;
@@ -110,6 +111,7 @@ export interface VendorFormData {
 export type DocKey =
   | "passportPhoto"
   | "panDoc"
+  | "adharDoc"
   | "gstDoc"
   | "vendorProof"
   | "vehicleDoc";
@@ -127,3 +129,11 @@ export interface SectionTheme {
   icon: string;
   field: string;
 }
+export type VendorStatus =
+  | "applied"
+  | "approved"
+  | "rejected"
+  | "active"
+  | "inactive"
+  | "suspended"
+  | "blocked";

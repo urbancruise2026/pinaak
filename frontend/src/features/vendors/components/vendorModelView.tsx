@@ -1,251 +1,591 @@
 "use client";
 
-import React, { useEffect, useRef } from "react";
+import React, { useEffect, useState } from "react";
 import {
   X,
   User,
+  UserRound,
   Mail,
   Phone,
-  MapPin,
-  FileText,
-  Building,
-  CreditCard,
-  Landmark,
+  IdCard,
+  Building2,
+  Briefcase,
   Hash,
-  BadgeCheck,
+  MapPin,
+  Home,
+  Landmark,
+  Warehouse,
+  Tag,
+  Users,
+  FileText,
+  CalendarDays,
+  Truck,
+  ExternalLink,
+  Loader2,
 } from "lucide-react";
+import { getVendorByIdAPI } from "@/features/vendors/vendorApi";
 
-interface VendorModalViewProps {
+interface Props {
   vendor: any;
   onClose: () => void;
 }
 
-const VendorModalView: React.FC<VendorModalViewProps> = ({
-  vendor,
-  onClose,
-}) => {
-  const modalRef = useRef<HTMLDivElement>(null);
+const txt = (v: unknown) =>
+  v === null || v === undefined || String(v).trim() === ""
+    ? "—"
+    : String(v).trim();
+
+const fmtDate = (v: unknown) => {
+  if (!v) return "—";
+  const d = new Date(String(v));
+  return Number.isNaN(d.getTime())
+    ? "—"
+    : d.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+};
+
+const isImage = (url: string) => /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(url);
+
+const DOCS: { key: string; label: string }[] = [
+  { key: "passportPhoto", label: "Passport Photo" },
+  { key: "adharDoc", label: "Aadhaar Document" },
+  { key: "panDoc", label: "PAN Document" },
+  { key: "gstDoc", label: "GST Document" },
+  { key: "vendorProof", label: "Office Photo (Outside)" },
+  { key: "vehicleDoc", label: "Vehicle Document" },
+];
+
+/* ---------- Status config (table ke saath same) ---------- */
+const STATUS_STYLES: Record<
+  string,
+  { label: string; cls: string; dot: string }
+> = {
+  applied: {
+    label: "Applied",
+    cls: "bg-blue-100 text-blue-700",
+    dot: "bg-blue-500",
+  },
+  approved: {
+    label: "Approved",
+    cls: "bg-teal-100 text-teal-700",
+    dot: "bg-teal-500",
+  },
+  rejected: {
+    label: "Rejected",
+    cls: "bg-rose-100 text-rose-700",
+    dot: "bg-rose-500",
+  },
+  active: {
+    label: "Active",
+    cls: "bg-green-100 text-green-700",
+    dot: "bg-green-500",
+  },
+  inactive: {
+    label: "Inactive",
+    cls: "bg-slate-100 text-slate-600",
+    dot: "bg-slate-400",
+  },
+  suspended: {
+    label: "Suspended",
+    cls: "bg-amber-100 text-amber-700",
+    dot: "bg-amber-500",
+  },
+  blocked: {
+    label: "Blocked",
+    cls: "bg-red-100 text-red-700",
+    dot: "bg-red-500",
+  },
+};
+
+const Field = ({
+  label,
+  value,
+  Icon,
+  iconClass,
+  badge,
+}: {
+  label: string;
+  value: string;
+  Icon: React.ElementType;
+  iconClass: string;
+  badge?: string;
+}) => (
+  <div className="flex items-center gap-3">
+    <div
+      className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-full ${iconClass}`}
+    >
+      <Icon size={20} />
+    </div>
+    <div className="min-w-0">
+      <p className="text-sm text-slate-500">{label}</p>
+      {badge && value !== "—" ? (
+        <span
+          className={`mt-0.5 inline-flex rounded-full px-3 py-0.5 text-sm font-semibold ${badge}`}
+        >
+          {value}
+        </span>
+      ) : (
+        <p className="break-words text-base font-semibold text-slate-900">
+          {value}
+        </p>
+      )}
+    </div>
+  </div>
+);
+
+const Section = ({
+  title,
+  Icon,
+  wrap,
+  head,
+  children,
+}: {
+  title: string;
+  Icon: React.ElementType;
+  wrap: string;
+  head: string;
+  children: React.ReactNode;
+}) => (
+  <div className={`overflow-hidden rounded-xl border ${wrap}`}>
+    <div className={`flex items-center gap-2.5 border-b px-5 py-3 ${head}`}>
+      <Icon size={20} />
+      <h3 className="text-lg font-semibold">{title}</h3>
+    </div>
+    <div className="px-5 py-5">{children}</div>
+  </div>
+);
+
+const GRID = "grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3";
+
+const VendorModalView: React.FC<Props> = ({ vendor: initial, onClose }) => {
+  const [data, setData] = useState<any>(initial);
+  const [loading, setLoading] = useState(true);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  // backend se poora vendor fetch karo
+  useEffect(() => {
+    const id = Number(initial?.id ?? initial?.vendor_id);
+    if (!id) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        setLoading(true);
+        const full = await getVendorByIdAPI(id);
+        if (!cancelled && full) setData({ ...initial, ...full });
+      } catch (err: any) {
+        if (!cancelled) setFetchError(err?.message || "Failed to load vendor");
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [initial]);
 
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
-    };
-    document.addEventListener("keydown", handleKeyDown);
-    return () => document.removeEventListener("keydown", handleKeyDown);
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && onClose();
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
 
-  const handleBackdropClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (modalRef.current && !modalRef.current.contains(e.target as Node)) {
-      onClose();
-    }
-  };
+  if (!data) return null;
 
-  const get = (v: any, ...keys: string[]): string => {
-    for (const k of keys) {
-      const parts = k.split(".");
-      let val: any = v;
-      for (const p of parts) val = val?.[p];
-      if (val !== undefined && val !== null && val !== "") return String(val);
-    }
-    return "";
-  };
+  const name = txt(data.name);
+  const avatar = name !== "—" ? name.charAt(0).toUpperCase() : "V";
 
-  const vendorName = get(vendor, "name", "vendor_name", "vendorName");
-  const email = get(vendor, "email", "vendor_email");
-  const phone = get(vendor, "phone", "mobile", "vendor_phone");
-  const companyName = get(vendor, "company_name", "companyName", "company.name");
-  const companyType = get(vendor, "companyType", "company_type", "company.type");
-  const gstNumber = get(vendor, "gstNumber", "gst_number", "gst");
-  const ownerName = get(vendor, "ownerName", "owner_name", "owner.name");
-  const city = get(vendor, "personalInfo.personalCity", "personal_city", "city", "address.city");
-  const state = get(vendor, "personalInfo.personalState", "personal_state", "state", "address.state");
-  const pincode = get(vendor, "personalInfo.personalPincode", "pincode", "address.pincode");
-  const address = get(vendor, "personalInfo.personalAddress", "address_line", "address");
-  const panNumber = get(vendor, "panNumber", "pan_number", "pan");
-  const bankName = get(vendor, "bankName", "bank_name", "bank.name");
-  const accountNo = get(vendor, "accountNumber", "account_number", "bank.accountNumber");
-  const ifsc = get(vendor, "ifscCode", "ifsc_code", "bank.ifsc");
-  const status = get(vendor, "status") || "active";
-  const vendorId = get(vendor, "id", "vendor_id");
+  const statusKey = txt(data.status).toLowerCase();
+  const status = STATUS_STYLES[statusKey] ?? STATUS_STYLES.applied;
 
-  const isActive = status !== "inactive";
+  const verified = txt(data.verification).toLowerCase() === "verified";
+  const verificationRejected =
+    txt(data.verification).toLowerCase() === "rejected";
+  const verificationLabel = verified
+    ? "Verified"
+    : verificationRejected
+      ? "Verification rejected"
+      : "Verification pending";
+  const verificationCls = verified
+    ? "bg-blue-100 text-blue-700"
+    : verificationRejected
+      ? "bg-rose-100 text-rose-700"
+      : "bg-amber-100 text-amber-700";
 
-  // ── Driver-modal style: light bg + dark text field row ──
-  const InfoRow = ({
-    label,
-    value,
-    icon: Icon,
-    iconColor = "blue",
-  }: {
-    label: string;
-    value: string;
-    icon?: any;
-    iconColor?: string;
-  }) => {
-    const colorMap: Record<string, string> = {
-      blue: "text-blue-500",
-      green: "text-green-500",
-      purple: "text-purple-500",
-      yellow: "text-yellow-500",
-      orange: "text-orange-500",
-    };
-    return (
-      <div className="flex items-start gap-3 p-3 border-b border-gray-100 last:border-0">
-        {Icon && (
-          <div className="flex-shrink-0 mt-0.5">
-            <Icon className={`w-4 h-4 ${colorMap[iconColor] ?? "text-blue-500"}`} />
-          </div>
-        )}
-        <div className="flex-1 min-w-0">
-          <p className="text-[10px] font-semibold uppercase tracking-widest text-gray-400">
-            {label}
-          </p>
-          <p className="text-sm text-gray-800 font-medium mt-0.5 break-words">
-            {value || "—"}
-          </p>
-        </div>
-      </div>
-    );
-  };
+  const blue = "bg-blue-100 text-blue-600";
+  const purple = "bg-purple-100 text-purple-600";
+  const green = "bg-green-100 text-green-600";
+  const amber = "bg-amber-100 text-amber-600";
 
-  // ── Section header (same driver-modal style) ──
-  const SectionHeader = ({
-    title,
-    icon: Icon,
-    color,
-  }: {
-    title: string;
-    icon: any;
-    color: "blue" | "green" | "purple" | "yellow";
-  }) => {
-    const map = {
-      blue:   { border: "border-blue-200",   text: "text-blue-700",   icon: "text-blue-600"   },
-      green:  { border: "border-green-200",  text: "text-green-700",  icon: "text-green-600"  },
-      purple: { border: "border-purple-200", text: "text-purple-700", icon: "text-purple-600" },
-      yellow: { border: "border-yellow-200", text: "text-yellow-700", icon: "text-yellow-600" },
-    };
-    const c = map[color];
-    return (
-      <div className={`flex items-center gap-2 mb-4 pb-2 border-b-2 ${c.border}`}>
-        <Icon className={`w-5 h-5 ${c.icon}`} />
-        <h3 className={`text-base font-semibold ${c.text}`}>{title}</h3>
-      </div>
-    );
-  };
+  const contacts = [
+    {
+      title: "Owner",
+      name: data.ownerName,
+      phone: data.ownerPhone,
+      email: data.ownerEmail,
+    },
+    {
+      title: "Ops Manager",
+      name: data.managerName1,
+      phone: data.managerPhone1,
+      email: data.managerEmail1,
+    },
+    {
+      title: "Accountant",
+      name: data.managerName2,
+      phone: data.managerPhone2,
+      email: data.managerEmail2,
+    },
+  ];
 
-  const hasBankInfo = bankName || accountNo || ifsc;
+  const uploadedDocs = DOCS.filter((d) => data[d.key]);
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 backdrop-blur-sm p-4"
-      onClick={handleBackdropClick}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 p-4 backdrop-blur-sm"
+      onClick={onClose}
     >
       <div
-        ref={modalRef}
-        className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden animate-modal-in"
+        className="flex max-h-[92vh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl bg-white shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
       >
-        {/* ── HEADER ── */}
-        <div className="bg-gradient-to-r from-orange-600 to-orange-500 px-6 py-5 flex items-start justify-between shrink-0">
+        {/* ---------- Header ---------- */}
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 py-5">
           <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center text-white text-xl font-bold shadow-inner">
-              {vendorName ? vendorName.charAt(0).toUpperCase() : "V"}
+            <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-100 text-3xl font-bold text-indigo-600">
+              {avatar}
             </div>
             <div>
-              <h2 className="text-white text-lg font-bold leading-tight">
-                {vendorName || "—"}
-              </h2>
-              <p className="text-orange-100 text-xs mt-0.5">Vendor ID: #{vendorId || "—"}</p>
-              <span
-                className={`inline-block mt-1 px-2 py-0.5 text-[10px] font-semibold rounded-full ${
-                  isActive
-                    ? "bg-green-400/30 text-green-100"
-                    : "bg-red-400/30 text-red-100"
-                }`}
-              >
-                {isActive ? "● Active" : "● Inactive"}
-              </span>
+              <h2 className="text-2xl font-bold text-slate-900">{name}</h2>
+              <p className="text-base text-slate-500">
+                Vendor ID: {txt(data.id)}
+                {data.shortName ? ` · ${data.shortName}` : ""}
+              </p>
+              <div className="mt-1 flex flex-wrap gap-2">
+                <span
+                  className={`inline-flex items-center gap-1.5 rounded-full px-3 py-0.5 text-sm font-medium ${status.cls}`}
+                >
+                  <span className={`h-2 w-2 rounded-full ${status.dot}`} />
+                  {status.label}
+                </span>
+                <span
+                  className={`inline-flex rounded-full px-3 py-0.5 text-sm font-medium ${verificationCls}`}
+                >
+                  {verificationLabel}
+                </span>
+              </div>
             </div>
           </div>
+
           <button
+            type="button"
             onClick={onClose}
-            className="text-white/80 hover:text-white hover:bg-white/10 rounded-lg p-1.5 transition"
-            title="Close"
+            aria-label="Close"
+            className="rounded-full bg-red-500 p-2 text-white transition hover:bg-red-700"
           >
-            <X className="w-5 h-5" />
+            <X size={24} />
           </button>
         </div>
 
-        {/* ── BODY ── */}
-        <div className="overflow-y-auto px-6 py-5 flex-1 space-y-5">
-
-          {/* Basic Information — Blue */}
-          <div className="bg-blue-50 rounded-lg p-4">
-            <SectionHeader title="Basic Information" icon={User} color="blue" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1">
-              <InfoRow label="Vendor Name"  value={vendorName}  icon={User}       iconColor="blue" />
-              <InfoRow label="Owner Name"   value={ownerName}   icon={User}       iconColor="blue" />
-              <InfoRow label="Email"        value={email}       icon={Mail}       iconColor="blue" />
-              <InfoRow label="Phone"        value={phone}       icon={Phone}      iconColor="blue" />
-              <InfoRow label="PAN Number"   value={panNumber}   icon={CreditCard} iconColor="blue" />
-            </div>
-          </div>
-
-          {/* Company Details — Purple */}
-          <div className="bg-purple-50 rounded-lg p-4">
-            <SectionHeader title="Company Details" icon={Building} color="purple" />
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1">
-              <InfoRow label="Company Name" value={companyName} icon={Building}    iconColor="purple" />
-              <InfoRow label="Company Type" value={companyType} icon={BadgeCheck}  iconColor="purple" />
-              <InfoRow label="GST Number"   value={gstNumber}   icon={Hash}        iconColor="purple" />
-            </div>
-          </div>
-
-          {/* Address — Green */}
-          <div className="bg-green-50 rounded-lg p-4">
-            <SectionHeader title="Address" icon={MapPin} color="green" />
-            <div className="grid grid-cols-1 gap-1">
-              <InfoRow label="Address" value={address} icon={MapPin} iconColor="green" />
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-1">
-                <InfoRow label="City"    value={city}    icon={MapPin} iconColor="green" />
-                <InfoRow label="State"   value={state}   icon={MapPin} iconColor="green" />
-                <InfoRow label="Pincode" value={pincode} icon={MapPin} iconColor="green" />
-              </div>
-            </div>
-          </div>
-
-          {/* Bank Details — Yellow */}
-          {hasBankInfo && (
-            <div className="bg-yellow-50 rounded-lg p-4">
-              <SectionHeader title="Bank Details" icon={Landmark} color="yellow" />
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1">
-                <InfoRow label="Bank Name"       value={bankName}  icon={Landmark}  iconColor="yellow" />
-                <InfoRow label="Account Number"  value={accountNo} icon={FileText}  iconColor="yellow" />
-                <InfoRow label="IFSC Code"       value={ifsc}      icon={Hash}      iconColor="yellow" />
-              </div>
+        {/* ---------- Body ---------- */}
+        <div className="relative space-y-4 overflow-y-auto bg-slate-50/40 px-6 py-5">
+          {loading && (
+            <div className="flex items-center gap-2 text-sm text-slate-500">
+              <Loader2 size={16} className="animate-spin" /> Loading full
+              details...
             </div>
           )}
-        </div>
+          {fetchError && (
+            <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-2 text-sm text-red-700">
+              {fetchError}
+            </div>
+          )}
 
-        {/* ── FOOTER ── */}
-        <div className="shrink-0 border-t border-gray-100 px-6 py-3 flex justify-end bg-gray-50">
-          <button
-            onClick={onClose}
-            className="px-6 py-2 text-sm font-medium bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition"
+          {/* Basic Information */}
+          <Section
+            title="Basic Information"
+            Icon={User}
+            wrap="border-blue-200 bg-blue-50/40"
+            head="border-blue-200 bg-blue-50 text-blue-900"
           >
-            Close
-          </button>
-        </div>
-      </div>
+            <div className={GRID}>
+              <Field
+                label="Vendor Name"
+                value={name}
+                Icon={UserRound}
+                iconClass={blue}
+              />
+              <Field
+                label="Short Name"
+                value={txt(data.shortName)}
+                Icon={Tag}
+                iconClass={blue}
+              />
+              <Field
+                label="Email"
+                value={txt(data.email)}
+                Icon={Mail}
+                iconClass={blue}
+              />
+              <Field
+                label="Phone"
+                value={txt(data.phone)}
+                Icon={Phone}
+                iconClass={blue}
+              />
+              <Field
+                label="Aadhaar Number"
+                value={txt(data.aadhaarNumber)}
+                Icon={IdCard}
+                iconClass={blue}
+              />
+              <Field
+                label="Address"
+                value={txt(data.address)}
+                Icon={Home}
+                iconClass={blue}
+              />
+            </div>
+          </Section>
 
-      <style jsx>{`
-        @keyframes modalIn {
-          from { opacity: 0; transform: scale(0.95) translateY(10px); }
-          to   { opacity: 1; transform: scale(1)    translateY(0);    }
-        }
-        .animate-modal-in {
-          animation: modalIn 0.2s ease-out;
-        }
-      `}</style>
+          {/* Contacts */}
+          <Section
+            title="Contact Information"
+            Icon={Users}
+            wrap="border-sky-200 bg-sky-50/40"
+            head="border-sky-200 bg-sky-50 text-sky-900"
+          >
+            <div className="grid grid-cols-1 gap-x-8 gap-y-6 md:grid-cols-3">
+              {contacts.map((c) => (
+                <div key={c.title} className="space-y-4">
+                  <p className="text-sm font-semibold uppercase tracking-wide text-sky-700">
+                    {c.title}
+                  </p>
+                  <Field
+                    label="Name"
+                    value={txt(c.name)}
+                    Icon={User}
+                    iconClass="bg-sky-100 text-sky-600"
+                  />
+                  <Field
+                    label="Phone"
+                    value={txt(c.phone)}
+                    Icon={Phone}
+                    iconClass="bg-sky-100 text-sky-600"
+                  />
+                  <Field
+                    label="Email"
+                    value={txt(c.email)}
+                    Icon={Mail}
+                    iconClass="bg-sky-100 text-sky-600"
+                  />
+                </div>
+              ))}
+            </div>
+          </Section>
+
+          {/* Company */}
+          <Section
+            title="Company Details"
+            Icon={Building2}
+            wrap="border-purple-200 bg-purple-50/40"
+            head="border-purple-200 bg-purple-50 text-purple-900"
+          >
+            <div className={GRID}>
+              <Field
+                label="Company Name"
+                value={txt(data.companyName)}
+                Icon={Building2}
+                iconClass={purple}
+              />
+              <Field
+                label="Company Type"
+                value={txt(data.companyType)}
+                Icon={Briefcase}
+                iconClass={purple}
+                badge="bg-purple-100 text-purple-800"
+              />
+              <Field
+                label="Company PAN"
+                value={txt(data.companyPanNumber)}
+                Icon={IdCard}
+                iconClass={purple}
+              />
+              <Field
+                label="Registration Number"
+                value={txt(data.companyRegisteredNumber)}
+                Icon={FileText}
+                iconClass={purple}
+              />
+              <Field
+                label="GST Number"
+                value={txt(data.gstNumber)}
+                Icon={Hash}
+                iconClass={purple}
+              />
+              <Field
+                label="Business Number"
+                value={txt(data.businessNumber)}
+                Icon={Hash}
+                iconClass={purple}
+              />
+              <Field
+                label="Fleet Details"
+                value={txt(data.cooperativeName)}
+                Icon={Truck}
+                iconClass={purple}
+              />
+              <Field
+                label="Cooperative Number"
+                value={txt(data.cooperativeNumber)}
+                Icon={Hash}
+                iconClass={purple}
+              />
+            </div>
+          </Section>
+
+          {/* Addresses */}
+          <Section
+            title="Address"
+            Icon={MapPin}
+            wrap="border-green-200 bg-green-50/40"
+            head="border-green-200 bg-green-50 text-green-900"
+          >
+            <div className="space-y-5">
+              <div className={GRID}>
+                <Field
+                  label="Vendor Address"
+                  value={txt(data.personalInfo?.personalAddress)}
+                  Icon={Home}
+                  iconClass={green}
+                />
+                <Field
+                  label="City"
+                  value={txt(data.personalInfo?.personalCity)}
+                  Icon={Building2}
+                  iconClass={green}
+                />
+                <Field
+                  label="State"
+                  value={txt(data.personalInfo?.personalState)}
+                  Icon={Landmark}
+                  iconClass={green}
+                />
+              </div>
+              <div className="border-t border-green-100 pt-5">
+                <div className={GRID}>
+                  <Field
+                    label="Registered Address"
+                    value={txt(data.registeredAddress)}
+                    Icon={MapPin}
+                    iconClass={green}
+                  />
+                  <Field
+                    label="Garage Address"
+                    value={txt(data.garageAddress)}
+                    Icon={Warehouse}
+                    iconClass={green}
+                  />
+                  <Field
+                    label="Garage Phone"
+                    value={txt(data.garagePhone)}
+                    Icon={Phone}
+                    iconClass={green}
+                  />
+                  <Field
+                    label="Company City"
+                    value={txt(data.companyinfo?.companyCity)}
+                    Icon={Building2}
+                    iconClass={green}
+                  />
+                  <Field
+                    label="Company State"
+                    value={txt(data.companyinfo?.companyState)}
+                    Icon={Landmark}
+                    iconClass={green}
+                  />
+                </div>
+              </div>
+            </div>
+          </Section>
+
+          {/* Documents */}
+          <Section
+            title="Documents"
+            Icon={FileText}
+            wrap="border-amber-200 bg-amber-50/40"
+            head="border-amber-200 bg-amber-50 text-amber-900"
+          >
+            {uploadedDocs.length === 0 ? (
+              <p className="text-base text-slate-500">No documents uploaded.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {uploadedDocs.map(({ key, label }) => {
+                  const url = String(data[key]);
+                  return (
+                    <a
+                      key={key}
+                      href={url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="group overflow-hidden rounded-xl border border-amber-100 bg-white transition hover:shadow-md"
+                    >
+                      <div className="flex h-32 items-center justify-center bg-slate-100">
+                        {isImage(url) ? (
+                          // eslint-disable-next-line @next/next/no-img-element
+                          <img
+                            src={url}
+                            alt={label}
+                            className="h-full w-full object-cover"
+                          />
+                        ) : (
+                          <FileText size={40} className="text-amber-500" />
+                        )}
+                      </div>
+                      <div className="flex items-center justify-between px-3 py-2.5">
+                        <span className="text-base font-medium text-slate-800">
+                          {label}
+                        </span>
+                        <ExternalLink
+                          size={16}
+                          className="text-slate-400 group-hover:text-amber-600"
+                        />
+                      </div>
+                    </a>
+                  );
+                })}
+              </div>
+            )}
+          </Section>
+
+          {/* Record info */}
+          <Section
+            title="Record Info"
+            Icon={CalendarDays}
+            wrap="border-slate-200 bg-white"
+            head="border-slate-200 bg-slate-50 text-slate-800"
+          >
+            <div className={GRID}>
+              <Field
+                label="Created At"
+                value={fmtDate(data.createdAt)}
+                Icon={CalendarDays}
+                iconClass={amber}
+              />
+              <Field
+                label="Last Updated"
+                value={fmtDate(data.updatedAt)}
+                Icon={CalendarDays}
+                iconClass={amber}
+              />
+            </div>
+          </Section>
+        </div>
+
+        {/* ---------- Footer ---------- */}
+        <div className="flex justify-end border-t border-slate-200 bg-white px-6 py-4"></div>
+      </div>
     </div>
   );
 };

@@ -18,19 +18,13 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-import type {
-  DocKey,
-  FileState,
-  SectionTheme,
-  VendorFormData,
-} from "./types";
+import type { DocKey, FileState, SectionTheme, VendorFormData } from "./types";
 
 // ─────────────────────────────────────────────
 // Grid
 // ─────────────────────────────────────────────
 
-export const GRID =
-  "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4";
+export const GRID = "grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4";
 
 // ─────────────────────────────────────────────
 // Themes
@@ -41,10 +35,8 @@ export const THEMES: Record<
   SectionTheme
 > = {
   vendor: {
-    section:
-      "bg-violet-50/70 border-violet-300",
-    heading:
-      "text-violet-900 border-violet-200",
+    section: "bg-violet-50/70 border-violet-300",
+    heading: "text-violet-900 border-violet-200",
     badge: "bg-violet-600",
     icon: "text-violet-500",
     field:
@@ -52,10 +44,8 @@ export const THEMES: Record<
   },
 
   contact: {
-    section:
-      "bg-sky-50/70 border-sky-300",
-    heading:
-      "text-sky-900 border-sky-200",
+    section: "bg-sky-50/70 border-sky-300",
+    heading: "text-sky-900 border-sky-200",
     badge: "bg-sky-600",
     icon: "text-sky-500",
     field:
@@ -63,10 +53,8 @@ export const THEMES: Record<
   },
 
   company: {
-    section:
-      "bg-emerald-50/70 border-emerald-300",
-    heading:
-      "text-emerald-900 border-emerald-200",
+    section: "bg-emerald-50/70 border-emerald-300",
+    heading: "text-emerald-900 border-emerald-200",
     badge: "bg-emerald-600",
     icon: "text-emerald-500",
     field:
@@ -74,10 +62,8 @@ export const THEMES: Record<
   },
 
   docs: {
-    section:
-      "bg-amber-50/70 border-amber-300",
-    heading:
-      "text-amber-900 border-amber-200",
+    section: "bg-amber-50/70 border-amber-300",
+    heading: "text-amber-900 border-amber-200",
     badge: "bg-amber-600",
     icon: "text-amber-500",
     field:
@@ -153,6 +139,7 @@ export const initialFormState: VendorFormData = {
   // Documents
   passportPhoto: "",
   panDoc: "",
+  adharDoc: "",
   gstDoc: "",
   vendorProof: "",
   vehicleDoc: "",
@@ -165,6 +152,7 @@ export const initialFormState: VendorFormData = {
 export const initialFiles: FileState = {
   passportPhoto: null,
   panDoc: null,
+  adharDoc: null,
   gstDoc: null,
   vendorProof: null,
   vehicleDoc: null,
@@ -187,9 +175,7 @@ export const COMPANY_TYPES = [
 // Max Lengths
 // ─────────────────────────────────────────────
 
-export const MAX_LENGTHS: Partial<
-  Record<string, number>
-> = {
+export const MAX_LENGTHS: Partial<Record<string, number>> = {
   name: 100,
   username: 50,
   shortName: 30,
@@ -326,24 +312,9 @@ export const DOC_FIELDS: {
   label: string;
   Icon: LucideIcon;
 }[] = [
-  {
-    key: "passportPhoto",
-    label: "Passport Photo",
-    Icon: Camera,
-  },
-  {
-    key: "panDoc",
-    label: "PAN Card",
-    Icon: IdCard,
-  },
-  {
-    key: "gstDoc",
-    label: "GST Certificate",
-    Icon: FileCheck,
-  },
-  {
-    key: "vendorProof",
-    label: "Ofc Photo Outside",
-    Icon: Store,
-  },
+  { key: "passportPhoto", label: "Passport Photo", Icon: Camera },
+  { key: "adharDoc", label: "Aadhaar Document", Icon: IdCard },
+  { key: "panDoc", label: "PAN Document", Icon: CreditCard },
+  { key: "gstDoc", label: "GST Document", Icon: FileCheck },
+  { key: "vendorProof", label: "Office Photo (Outside)", Icon: Store },
 ];
