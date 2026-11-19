@@ -6,6 +6,7 @@ import {
   updateVendorStatusController,
   deleteVendorController,
   updateVendorVerificationController,
+  getRegionByStateIdController,
 } from "./vendor.controller.js";
 import { getAllAccessCitiesController } from "./vendor.controller.js";
 import { Router } from "express";
@@ -14,7 +15,7 @@ const router = Router();
 
 // Static routes pehle (taki /:id se clash na ho)
 router.route("/access-cities").get(getAllAccessCitiesController);
-
+router.get("/states/:stateId/region", getRegionByStateIdController);
 router.route("/").post(createVendorController).get(getAllVendorsController);
 
 router

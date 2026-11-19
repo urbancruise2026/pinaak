@@ -9,16 +9,23 @@ import {
   Receipt,
   Hash,
   MapPin,
-  Warehouse,
   Truck,
   Camera,
   IdCard,
   FileCheck,
   Store,
+  Landmark,
   type LucideIcon,
 } from "lucide-react";
 
-import type { DocKey, FileState, SectionTheme, VendorFormData } from "./types";
+import type {
+  DocKey,
+  FileState,
+  SectionTheme,
+  VendorCompany,
+  VendorFormData,
+  VendorGarage,
+} from "./types";
 
 // ─────────────────────────────────────────────
 // Grid
@@ -72,6 +79,42 @@ export const THEMES: Record<
 };
 
 // ─────────────────────────────────────────────
+// Empty rows (1 vendor = multiple companies / garages)
+// Har company ke saath uski bank details bhi jati hain
+// ─────────────────────────────────────────────
+
+export const emptyGarage = (): VendorGarage => ({
+  garageAddress: "",
+  garageManager: "",
+  garagePhone: "",
+});
+
+export const emptyCompany = (): VendorCompany => ({
+  companyName: "",
+  companyType: "",
+  companyPanNumber: "",
+  companyRegisteredNumber: "",
+  gstNumber: "",
+  businessNumber: "",
+  registeredAddress: "",
+  cooperativeName: "",
+  cooperativeNumber: "",
+
+  // bank details (is company ki)
+  bankName: "",
+  bankAccountNumber: "",
+  accountHolderName: "",
+  ifscCode: "",
+  cancelledCheque: "",
+});
+
+// ─────────────────────────────────────────────
+// Vendor Categories (DB ENUM vendors.vendor_category se match honi chahiye)
+// ─────────────────────────────────────────────
+
+export const VENDOR_CATEGORIES = ["bus", "cab", "tempo_traveller", "other"];
+
+// ─────────────────────────────────────────────
 // Initial Form State
 // ─────────────────────────────────────────────
 
@@ -85,6 +128,8 @@ export const initialFormState: VendorFormData = {
   shortName: "",
   vendor: "",
   code: "",
+  region: "",
+  vendorCategory: "",
 
   // Basic Contact
   email: "",
@@ -108,20 +153,11 @@ export const initialFormState: VendorFormData = {
   managerPhone2: "",
   managerEmail2: "",
 
-  // Company
-  companyName: "",
-  companyType: "",
-  companyPanNumber: "",
-  companyRegisteredNumber: "",
-  gstNumber: "",
-  businessNumber: "",
+  // Companies (multiple, har company ki bank details ke saath)
+  companies: [emptyCompany()],
 
-  registeredAddress: "",
-  garageAddress: "",
-  garagePhone: "",
-
-  cooperativeName: "",
-  cooperativeNumber: "",
+  // Garages (multiple)
+  garages: [emptyGarage()],
 
   // Personal Information
   personalInfo: {
@@ -142,6 +178,7 @@ export const initialFormState: VendorFormData = {
   adharDoc: "",
   gstDoc: "",
   vendorProof: "",
+  vendorProof2: "",
   vehicleDoc: "",
 };
 
@@ -155,6 +192,7 @@ export const initialFiles: FileState = {
   adharDoc: null,
   gstDoc: null,
   vendorProof: null,
+  vendorProof2: null,
   vehicleDoc: null,
 };
 
@@ -179,11 +217,14 @@ export const MAX_LENGTHS: Partial<Record<string, number>> = {
   name: 100,
   username: 50,
   shortName: 30,
+  region: 100,
   gstNumber: 15,
   ownerPhone: 10,
   managerPhone1: 10,
   managerPhone2: 10,
   garagePhone: 10,
+  bankAccountNumber: 18,
+  ifscCode: 11,
 };
 
 // ─────────────────────────────────────────────
@@ -192,6 +233,14 @@ export const MAX_LENGTHS: Partial<Record<string, number>> = {
 
 export interface FieldConfig {
   name: keyof VendorFormData;
+  label: string;
+  Icon: LucideIcon;
+  type?: "text" | "tel" | "email";
+}
+
+// Company card ke andar ke fields (VendorCompany ke keys)
+export interface CompanyFieldConfig {
+  name: keyof VendorCompany;
   label: string;
   Icon: LucideIcon;
   type?: "text" | "tel" | "email";
@@ -256,10 +305,10 @@ export const CONTACT_FIELDS: FieldConfig[] = [
 ];
 
 // ─────────────────────────────────────────────
-// Company Fields
+// Company Fields (har company card me, Company Name / Type ke baad)
 // ─────────────────────────────────────────────
 
-export const COMPANY_FIELDS: FieldConfig[] = [
+export const COMPANY_FIELDS: CompanyFieldConfig[] = [
   {
     name: "companyPanNumber",
     label: "Company PAN",
@@ -277,7 +326,7 @@ export const COMPANY_FIELDS: FieldConfig[] = [
   },
   {
     name: "businessNumber",
-    label: "Business Number",
+    label: "Landline  Number",
     Icon: Hash,
   },
   {
@@ -286,25 +335,31 @@ export const COMPANY_FIELDS: FieldConfig[] = [
     Icon: MapPin,
   },
   {
-    name: "garageAddress",
-    label: "Garage Address",
-    Icon: Warehouse,
-  },
-  {
-    name: "garagePhone",
-    label: "Garage Phone",
-    type: "tel",
-    Icon: Phone,
-  },
-  {
     name: "cooperativeName",
-    label: "Fleet Details",
+    label: "Fleet Size (Total no. of Vehicles)",
     Icon: Truck,
   },
 ];
 
 // ─────────────────────────────────────────────
+// Bank Fields (har company card ke andar, us company ki bank details)
+// ─────────────────────────────────────────────
+
+export const BANK_FIELDS: CompanyFieldConfig[] = [
+  { name: "bankName", label: "Bank Name", Icon: Landmark },
+  {
+    name: "bankAccountNumber",
+    label: "Bank Account Number",
+    type: "tel",
+    Icon: Hash,
+  },
+  { name: "accountHolderName", label: "Account Holder Name", Icon: UserRound },
+  { name: "ifscCode", label: "IFSC Code", Icon: Landmark },
+];
+
+// ─────────────────────────────────────────────
 // Document Fields
+// (Cancelled Cheque yahan nahi hai, wo har company card me alag se hota hai)
 // ─────────────────────────────────────────────
 
 export const DOC_FIELDS: {
@@ -312,9 +367,10 @@ export const DOC_FIELDS: {
   label: string;
   Icon: LucideIcon;
 }[] = [
-  { key: "passportPhoto", label: "Passport Photo", Icon: Camera },
-  { key: "adharDoc", label: "Aadhaar Document", Icon: IdCard },
-  { key: "panDoc", label: "PAN Document", Icon: CreditCard },
-  { key: "gstDoc", label: "GST Document", Icon: FileCheck },
   { key: "vendorProof", label: "Office Photo (Outside)", Icon: Store },
+  { key: "vendorProof2", label: "Office Photo (Inside)", Icon: Store },
+  { key: "panDoc", label: "PAN Card (Company)", Icon: CreditCard },
+  { key: "gstDoc", label: "GST Certificate (Company)", Icon: FileCheck },
+  { key: "adharDoc", label: "Aadhaar Card (Owner)", Icon: IdCard },
+  { key: "passportPhoto", label: "Passport Size Photo (Owner)", Icon: Camera },
 ];

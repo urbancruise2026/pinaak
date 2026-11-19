@@ -18,14 +18,21 @@ import {
   resetStatesForCity,
 } from "@/features/location/stateSlice";
 import { uploadToCloudinary } from "@/features/utils/uploadToCloudinary";
-import { initialFiles, initialFormState } from "./constants";
+import {
+  emptyCompany,
+  emptyGarage,
+  initialFiles,
+  initialFormState,
+} from "./constants";
 import type {
   AppRootState,
   DocKey,
   FileState,
   FormMode,
   StateItem,
+  VendorCompany,
   VendorFormData,
+  VendorGarage,
 } from "./types";
 
 /* Backend vendor -> form data (sirf wahi keys jo form me hain) */
@@ -33,15 +40,57 @@ const mapVendorToForm = (v: VendorResponse): VendorFormData => {
   const flat = Object.fromEntries(
     (Object.keys(initialFormState) as (keyof VendorFormData)[])
       .filter(
-        (k) => k !== "personalInfo" && k !== "companyinfo" && k !== "password",
+        (k) =>
+          k !== "personalInfo" &&
+          k !== "companyinfo" &&
+          k !== "password" &&
+          k !== "garages" &&
+          k !== "companies",
       )
       .map((k) => [k, (v as any)?.[k] ?? ""]),
   );
+
+  // companies: id ke saath state me rakho (update me id se hi purani company update hoti hai)
+  // har company ki bank details bhi isi me hain
+  const companies: VendorCompany[] =
+    Array.isArray((v as any).companies) && (v as any).companies.length
+      ? (v as any).companies.map((c: any) => ({
+          id: c.id,
+          companyName: c.companyName ?? "",
+          companyType: c.companyType ?? "",
+          companyPanNumber: c.companyPanNumber ?? "",
+          companyRegisteredNumber: c.companyRegisteredNumber ?? "",
+          gstNumber: c.gstNumber ?? "",
+          businessNumber: c.businessNumber ?? "",
+          registeredAddress: c.registeredAddress ?? "",
+          cooperativeName: c.cooperativeName ?? "",
+          cooperativeNumber: c.cooperativeNumber ?? "",
+          bankName: c.bankName ?? "",
+          bankAccountNumber: c.bankAccountNumber ?? "",
+          accountHolderName: c.accountHolderName ?? "",
+          ifscCode: c.ifscCode ?? "",
+          cancelledCheque: c.cancelledCheque ?? "",
+        }))
+      : [emptyCompany()];
+
+  // garages: id ke saath state me rakho
+  const garages: VendorGarage[] =
+    Array.isArray((v as any).garages) && (v as any).garages.length
+      ? (v as any).garages.map((g: any) => ({
+          id: g.id,
+          garageAddress: g.garageAddress ?? "",
+          garageManager: g.garageManager ?? "",
+          garagePhone: g.garagePhone ?? "",
+        }))
+      : [emptyGarage()];
+
   return {
     ...initialFormState,
     ...flat,
     id: v.id,
     password: "",
+    companies,
+    garages,
     personalInfo: {
       personalAddress: v.personalInfo?.personalAddress ?? "",
       personalCity: v.personalInfo?.personalCity ?? "",
@@ -73,6 +122,8 @@ const buildPayload = (data: VendorFormData) => ({
   password: data.password ?? "",
   name: data.name ?? "",
   shortName: data.shortName ?? "",
+  region: data.region ?? "",
+  vendorCategory: data.vendorCategory ?? "",
   email: data.email ?? "",
   phone: data.phone ?? "",
   address: data.address ?? "",
@@ -88,17 +139,33 @@ const buildPayload = (data: VendorFormData) => ({
   managerPhone2: data.managerPhone2 ?? "",
   managerEmail2: data.managerEmail2 ?? "",
 
-  companyName: data.companyName ?? "",
-  companyType: data.companyType ?? "",
-  companyPanNumber: data.companyPanNumber ?? "",
-  companyRegisteredNumber: data.companyRegisteredNumber ?? "",
-  gstNumber: data.gstNumber ?? "",
-  businessNumber: data.businessNumber ?? "",
-  registeredAddress: data.registeredAddress ?? "",
-  garageAddress: data.garageAddress ?? "",
-  garagePhone: data.garagePhone ?? "",
-  cooperativeName: data.cooperativeName ?? "",
-  cooperativeNumber: data.cooperativeNumber ?? "",
+  // companies (bank details ke saath): id ke saath bhejo
+  // (khali rows backend me skip ho jati hain)
+  companies: (data.companies ?? []).map((c) => ({
+    ...(c.id ? { id: c.id } : {}),
+    companyName: c.companyName ?? "",
+    companyType: c.companyType ?? "",
+    companyPanNumber: c.companyPanNumber ?? "",
+    companyRegisteredNumber: c.companyRegisteredNumber ?? "",
+    gstNumber: c.gstNumber ?? "",
+    businessNumber: c.businessNumber ?? "",
+    registeredAddress: c.registeredAddress ?? "",
+    cooperativeName: c.cooperativeName ?? "",
+    cooperativeNumber: c.cooperativeNumber ?? "",
+    bankName: c.bankName ?? "",
+    bankAccountNumber: c.bankAccountNumber ?? "",
+    accountHolderName: c.accountHolderName ?? "",
+    ifscCode: c.ifscCode ?? "",
+    cancelledCheque: c.cancelledCheque ?? "",
+  })),
+
+  // garages: id ke saath bhejo (khali rows vendorApi me hat jati hain)
+  garages: (data.garages ?? []).map((g) => ({
+    ...(g.id ? { id: g.id } : {}),
+    garageAddress: g.garageAddress ?? "",
+    garageManager: g.garageManager ?? "",
+    garagePhone: g.garagePhone ?? "",
+  })),
 
   personalInfo: {
     personalAddress: data.personalInfo?.personalAddress ?? "",
@@ -116,6 +183,7 @@ const buildPayload = (data: VendorFormData) => ({
   adharDoc: data.adharDoc ?? "",
   gstDoc: data.gstDoc ?? "",
   vendorProof: data.vendorProof ?? "",
+  vendorProof2: data.vendorProof2 ?? "",
   vehicleDoc: data.vehicleDoc ?? "",
 });
 
@@ -140,6 +208,10 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
   const [uploading, setUploading] = useState<Partial<Record<DocKey, boolean>>>(
     {},
   );
+  // company ke index ke hisaab se cancelled cheque ka upload status
+  const [chequeUploading, setChequeUploading] = useState<
+    Record<number, boolean>
+  >({});
   const [states, setStates] = useState<StateItem[]>([]);
 
   const [isLoadingCities, setIsLoadingCities] = useState(false);
@@ -150,7 +222,9 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
   const [fileResetKey, setFileResetKey] = useState(0);
-  const isUploading = Object.values(uploading).some(Boolean);
+  const isUploading =
+    Object.values(uploading).some(Boolean) ||
+    Object.values(chequeUploading).some(Boolean);
 
   /* ---------- Data loading ---------- */
   const loadStates = useCallback(
@@ -248,6 +322,113 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
     [loadStates],
   );
 
+  /* ---------- Companies (multiple, har ek ki bank details ke saath) ---------- */
+  const addCompany = useCallback(
+    () =>
+      setFormData((prev) => ({
+        ...prev,
+        companies: [...(prev.companies ?? []), emptyCompany()],
+      })),
+    [],
+  );
+
+  const removeCompany = useCallback(
+    (index: number) =>
+      setFormData((prev) => ({
+        ...prev,
+        companies: (prev.companies ?? []).filter((_, i) => i !== index),
+      })),
+    [],
+  );
+
+  const handleCompanyChange = useCallback(
+    (index: number, field: keyof VendorCompany, value: string) =>
+      setFormData((prev) => ({
+        ...prev,
+        companies: (prev.companies ?? []).map((c, i) =>
+          i === index
+            ? {
+                ...c,
+                // IFSC hamesha uppercase me
+                [field]: field === "ifscCode" ? value.toUpperCase() : value,
+              }
+            : c,
+        ),
+      })),
+    [],
+  );
+
+  /* Company ka cancelled cheque: select hote hi Cloudinary par upload, URL us company me save */
+  const handleCompanyChequeChange = useCallback(
+    (index: number) => async (e: React.ChangeEvent<HTMLInputElement>) => {
+      const input = e.target;
+      const file = input.files?.[0] ?? null;
+      if (!file) return;
+
+      if (!formData.name?.trim()) {
+        setError("Document upload karne se pehle Vendor Name bharo");
+        input.value = "";
+        return;
+      }
+
+      setError(null);
+      setChequeUploading((prev) => ({ ...prev, [index]: true }));
+
+      try {
+        const url = await uploadToCloudinary(file, {
+          folder: getVendorFolder(formData.name),
+          fileName: `cancelledCheque_${index + 1}`,
+        });
+        setFormData((prev) => ({
+          ...prev,
+          companies: (prev.companies ?? []).map((c, i) =>
+            i === index ? { ...c, cancelledCheque: url } : c,
+          ),
+        }));
+      } catch (err: any) {
+        setError(err?.message || "Cancelled cheque upload failed");
+        input.value = "";
+      } finally {
+        setChequeUploading((prev) => ({ ...prev, [index]: false }));
+      }
+    },
+    [formData.name],
+  );
+
+  /* ---------- Garages (multiple) ---------- */
+  const addGarage = useCallback(
+    () =>
+      setFormData((prev) => ({
+        ...prev,
+        garages: [...(prev.garages ?? []), emptyGarage()],
+      })),
+    [],
+  );
+
+  const removeGarage = useCallback(
+    (index: number) =>
+      setFormData((prev) => ({
+        ...prev,
+        garages: (prev.garages ?? []).filter((_, i) => i !== index),
+      })),
+    [],
+  );
+
+  const handleGarageChange = useCallback(
+    (
+      index: number,
+      field: "garageAddress" | "garageManager" | "garagePhone",
+      value: string,
+    ) =>
+      setFormData((prev) => ({
+        ...prev,
+        garages: (prev.garages ?? []).map((g, i) =>
+          i === index ? { ...g, [field]: value } : g,
+        ),
+      })),
+    [],
+  );
+
   /* File select hote hi Cloudinary par upload, URL formData me save */
   const handleFileChange = useCallback(
     (key: DocKey) => async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -301,6 +482,27 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
       return;
     }
 
+    // har company ki bank details ki basic check (backend bhi validate karta hai)
+    const companies = formData.companies ?? [];
+    for (let i = 0; i < companies.length; i++) {
+      const c = companies[i];
+      if (c.ifscCode && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(c.ifscCode.trim())) {
+        setError(
+          `Company ${i + 1}: IFSC code galat hai (example: SBIN0001234)`,
+        );
+        return;
+      }
+      if (
+        c.bankAccountNumber &&
+        !/^\d{9,18}$/.test(c.bankAccountNumber.trim())
+      ) {
+        setError(
+          `Company ${i + 1}: Bank account number 9 se 18 digits ka hona chahiye`,
+        );
+        return;
+      }
+    }
+
     setSaving(true);
 
     try {
@@ -320,6 +522,7 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
         setSuccess("Vendor created successfully!");
         setFormData(initialFormState);
         setFiles(initialFiles);
+        setChequeUploading({});
         setFileResetKey((k) => k + 1); // <- add
         setStates([]);
         dispatch(resetStatesForCity());
@@ -352,6 +555,7 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
     isLoadingStates,
     saving,
     uploading,
+    chequeUploading,
     isUploading,
     showPassword,
     error,
@@ -363,5 +567,14 @@ export function useVendorForm({ mode, vendorId, onBack }: Options) {
     handleSubmit,
     togglePassword,
     fileResetKey,
+    // companies
+    addCompany,
+    removeCompany,
+    handleCompanyChange,
+    handleCompanyChequeChange,
+    // garages
+    addGarage,
+    removeGarage,
+    handleGarageChange,
   };
 }

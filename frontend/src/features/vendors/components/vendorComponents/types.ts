@@ -76,8 +76,6 @@ export interface VendorFormData {
   businessNumber: string;
 
   registeredAddress: string;
-  garageAddress: string;
-  garagePhone: string;
 
   cooperativeName: string;
   cooperativeNumber: string;
@@ -102,6 +100,17 @@ export interface VendorFormData {
   gstDoc: string;
   vendorProof: string;
   vehicleDoc: string;
+
+  region?: string;
+  vendorCategory?: string; // ya: "bus" | "cab" | "tempo_traveller" | "other"
+
+  garages: VendorGarage[];
+
+  bankName?: string;
+  bankAccountNumber?: string;
+  accountHolderName?: string;
+  ifscCode?: string;
+  cancelledCheque?: string; // Cloudinary URL
 }
 
 // ─────────────────────────────────────────────
@@ -137,3 +146,9 @@ export type VendorStatus =
   | "inactive"
   | "suspended"
   | "blocked";
+export type VendorGarage = {
+  id?: number; // purani garage me hoti hai, nayi me nahi
+  garageAddress: string;
+  garageManager: string;
+  garagePhone: string;
+};

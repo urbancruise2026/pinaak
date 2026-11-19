@@ -18,6 +18,16 @@ export type VendorUpdateData = Partial<VendorFormData>;
 // Payload Builder
 // ─────────────────────────────────────────────
 
+const isFilled = (v: unknown) => v !== null && v !== undefined && v !== "";
+
+// garages array saaf karta hai:
+// - poori khali row hata deta hai
+// - id (purani garage) ko waise hi rehne deta hai, taaki backend update kare
+const cleanGarages = (garages: VendorFormData["garages"]) =>
+  (garages ?? []).filter((g) =>
+    [g.garageAddress, g.garageManager, g.garagePhone].some(isFilled),
+  );
+
 const buildJsonPayload = (
   data: Partial<VendorFormData>,
 ): Partial<VendorFormData> => {
@@ -26,7 +36,15 @@ const buildJsonPayload = (
   Object.keys(data).forEach((key) => {
     const value = data[key as keyof VendorFormData];
 
-    if (value !== null && value !== undefined && value !== "") {
+    // garages: khali array [] bhi bhejna hai (isse saari garages delete hoti hain)
+    if (key === "garages") {
+      if (Array.isArray(value)) {
+        payload.garages = cleanGarages(value as VendorFormData["garages"]);
+      }
+      return;
+    }
+
+    if (isFilled(value)) {
       (payload as Record<string, unknown>)[key] = value;
     }
   });
@@ -230,6 +248,55 @@ export const getAllAccessCitiesAPI = async (): Promise<CityResponse[]> => {
     );
 
     throw new Error(error.response?.data?.message || "Error fetching cities");
+  }
+};
+
+// ─────────────────────────────────────────────
+// Region Type
+// ─────────────────────────────────────────────
+
+// ─────────────────────────────────────────────
+// Region by State
+// ─────────────────────────────────────────────
+
+export type StateRegionResponse = {
+  state: { id: number; name: string };
+  region: { id: number; name: string } | null; // region set nahi ho to null
+};
+
+// ─────────────────────────────────────────────
+// GET REGION BY STATE ID
+// ─────────────────────────────────────────────
+
+export const getRegionByStateIdAPI = async (
+  stateId: number,
+): Promise<StateRegionResponse | null> => {
+  try {
+    // NOTE: path wahi rakho jahan backend mein route mount kiya hai
+    const response = await axiosInstance.get(
+      `/vendor/states/${stateId}/region`,
+    );
+
+    const data = response.data;
+
+    if (data?.data?.state) {
+      return data.data;
+    }
+
+    if (data?.state) {
+      return data;
+    }
+
+    return null;
+  } catch (error: any) {
+    console.error(
+      "Error fetching region by state:",
+      error.response?.data || error.message,
+    );
+
+    throw new Error(
+      error.response?.data?.message || "Error fetching region for state",
+    );
   }
 };
 

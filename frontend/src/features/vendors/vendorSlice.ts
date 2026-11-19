@@ -5,15 +5,19 @@ import {
   deleteVendorAPI,
   getAllVendorsAPI,
   getAllAccessCitiesAPI,
+  getAllRegionsAPI,
   getVendorByIdAPI,
   updateVendorAPI,
   updateVendorStatusAPI,
   updateVendorVerificationAPI,
   type CityResponse,
+  type RegionResponse,
   type VendorResponse,
   type VendorStatus,
   type VendorUpdateData,
   type VendorVerification,
+  getRegionByStateIdAPI,
+  StateRegionResponse,
 } from "./vendorApi";
 
 import type { VendorFormData } from "./components/vendorComponents/types";
@@ -32,6 +36,18 @@ export const createVendorThunk = createAsyncThunk<
   }
 });
 
+export const getVendorByIdThunk = createAsyncThunk<
+  VendorResponse | null,
+  number,
+  { rejectValue: string }
+>("vendor/getVendorById", async (id, { rejectWithValue }) => {
+  try {
+    return await getVendorByIdAPI(id);
+  } catch (error: any) {
+    return rejectWithValue(error.message || "Failed to fetch vendor");
+  }
+});
+
 export const updateVendorThunk = createAsyncThunk<
   VendorResponse,
   {
@@ -39,15 +55,23 @@ export const updateVendorThunk = createAsyncThunk<
     vendorData: VendorUpdateData;
   },
   { rejectValue: string }
->("vendor/updateVendor", async ({ id, vendorData }, { rejectWithValue }) => {
-  try {
-    const response = await updateVendorAPI(id, vendorData);
+>(
+  "vendor/updateVendor",
+  async ({ id, vendorData }, { rejectWithValue, dispatch }) => {
+    try {
+      const response = await updateVendorAPI(id, vendorData);
 
-    return response;
-  } catch (error: any) {
-    return rejectWithValue(error.message || "Failed to update vendor");
-  }
-});
+      // Save ke baad vendor dobara fetch karo, taaki nayi garages ki `id`
+      // aur bank details state me aa jayein. Nahi to dobara save karne par
+      // nayi garages (bina id) duplicate ho jayengi.
+      await dispatch(getVendorByIdThunk(id));
+
+      return response;
+    } catch (error: any) {
+      return rejectWithValue(error.message || "Failed to update vendor");
+    }
+  },
+);
 
 export const getVendorsThunk = createAsyncThunk<
   VendorResponse[],
@@ -58,18 +82,6 @@ export const getVendorsThunk = createAsyncThunk<
     return await getAllVendorsAPI();
   } catch (error: any) {
     return rejectWithValue(error.message || "Failed to fetch vendors");
-  }
-});
-
-export const getVendorByIdThunk = createAsyncThunk<
-  VendorResponse | null,
-  number,
-  { rejectValue: string }
->("vendor/getVendorById", async (id, { rejectWithValue }) => {
-  try {
-    return await getVendorByIdAPI(id);
-  } catch (error: any) {
-    return rejectWithValue(error.message || "Failed to fetch vendor");
   }
 });
 
@@ -123,11 +135,26 @@ export const getAllAccessCitiesThunk = createAsyncThunk<
   }
 });
 
+export const getRegionByStateIdThunk = createAsyncThunk<
+  StateRegionResponse | null,
+  number,
+  { rejectValue: string }
+>("vendor/getRegionByStateId", async (stateId, { rejectWithValue }) => {
+  try {
+    return await getRegionByStateIdAPI(stateId);
+  } catch (error: any) {
+    return rejectWithValue(error.message || "Failed to fetch region for state");
+  }
+});
+
 interface VendorState {
   vendors: VendorResponse[];
 
   cities: CityResponse[];
   citiesLoading: boolean;
+
+  regions: RegionResponse[];
+  regionsLoading: boolean;
 
   currentVendor: VendorResponse | null;
   selectedVendor: VendorResponse | null;
@@ -136,6 +163,8 @@ interface VendorState {
   successMessage: string | null;
   isSuccess: boolean;
   vendorId: number | null;
+  stateRegion: StateRegionResponse | null;
+  stateRegionLoading: boolean;
 }
 
 const initialState: VendorState = {
@@ -144,6 +173,9 @@ const initialState: VendorState = {
   cities: [],
   citiesLoading: false,
 
+  regions: [],
+  regionsLoading: false,
+
   currentVendor: null,
   selectedVendor: null,
   loading: false,
@@ -151,7 +183,19 @@ const initialState: VendorState = {
   successMessage: null,
   isSuccess: false,
   vendorId: null,
+  stateRegion: null,
+  stateRegionLoading: false,
 };
+
+// vendors list (table) me dikhne wale fields, jo update hone par list me bhi badlenge
+const LIST_FIELDS = [
+  "name",
+  "email",
+  "phone",
+  "shortName",
+  "region",
+  "vendorCategory",
+] as const;
 
 const vendorSlice = createSlice({
   name: "vendor",
@@ -175,11 +219,17 @@ const vendorSlice = createSlice({
     clearSelectedVendor: (state) => {
       state.selectedVendor = null;
     },
+    clearStateRegion: (state) => {
+      state.stateRegion = null;
+      state.stateRegionLoading = false;
+    },
 
     clearVendorState: (state) => {
       state.vendors = [];
       state.cities = [];
       state.citiesLoading = false;
+      state.regions = [];
+      state.regionsLoading = false;
       state.currentVendor = null;
       state.selectedVendor = null;
       state.loading = false;
@@ -187,6 +237,8 @@ const vendorSlice = createSlice({
       state.successMessage = null;
       state.isSuccess = false;
       state.vendorId = null;
+      state.stateRegion = null;
+      state.stateRegionLoading = false;
     },
   },
 
@@ -225,10 +277,21 @@ const vendorSlice = createSlice({
         state.isSuccess = false;
       })
 
-      .addCase(updateVendorThunk.fulfilled, (state) => {
+      .addCase(updateVendorThunk.fulfilled, (state, action) => {
         state.loading = false;
         state.successMessage = "Vendor updated successfully";
         state.isSuccess = true;
+
+        // list ki row me sirf wahi fields badlo jo form se bheje gaye
+        // (currentVendor / selectedVendor getVendorByIdThunk se refresh ho jate hain)
+        const { id, vendorData } = action.meta.arg;
+        const row = state.vendors.find((x: any) => x.id === id) as any;
+        if (row) {
+          LIST_FIELDS.forEach((key) => {
+            const value = (vendorData as any)[key];
+            if (value !== undefined) row[key] = value;
+          });
+        }
       })
 
       .addCase(updateVendorThunk.rejected, (state, action) => {
@@ -346,6 +409,32 @@ const vendorSlice = createSlice({
         state.citiesLoading = false;
         state.error = action.payload || "Failed to fetch cities";
       })
+
+      // ═══════════════════════════════════════
+      // GET ALL REGIONS
+      // ═══════════════════════════════════════
+
+      // ═══════════════════════════════════════
+      // GET REGION BY STATE ID
+      // ═══════════════════════════════════════
+
+      .addCase(getRegionByStateIdThunk.pending, (state) => {
+        state.stateRegionLoading = true;
+        state.error = null;
+      })
+
+      .addCase(getRegionByStateIdThunk.fulfilled, (state, action) => {
+        state.stateRegionLoading = false;
+        state.stateRegion = action.payload;
+        state.error = null;
+      })
+
+      .addCase(getRegionByStateIdThunk.rejected, (state, action) => {
+        state.stateRegionLoading = false;
+        state.stateRegion = null;
+        state.error = action.payload || "Failed to fetch region for state";
+      })
+
       // ═══════════════════════════════════════
       // UPDATE VENDOR VERIFICATION
       // ═══════════════════════════════════════

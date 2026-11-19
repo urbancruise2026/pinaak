@@ -22,6 +22,9 @@ import {
   Truck,
   ExternalLink,
   Loader2,
+  Globe2,
+  CreditCard,
+  Wallet,
 } from "lucide-react";
 import { getVendorByIdAPI } from "@/features/vendors/vendorApi";
 
@@ -45,12 +48,14 @@ const fmtDate = (v: unknown) => {
 
 const isImage = (url: string) => /\.(png|jpe?g|webp|gif|avif)(\?|$)/i.test(url);
 
+// har key backend ke getVendorByIdModel ke docs se match karti hai
 const DOCS: { key: string; label: string }[] = [
-  { key: "passportPhoto", label: "Passport Photo" },
-  { key: "adharDoc", label: "Aadhaar Document" },
-  { key: "panDoc", label: "PAN Document" },
-  { key: "gstDoc", label: "GST Document" },
   { key: "vendorProof", label: "Office Photo (Outside)" },
+  { key: "vendorProof2", label: "Office Photo (Inside)" },
+  { key: "panDoc", label: "PAN Card (company)" },
+  { key: "gstDoc", label: "GST Document" },
+  { key: "adharDoc", label: "Aadhaar Card (Owner)" },
+  { key: "passportPhoto", label: "Passport size Photo" },
   { key: "vehicleDoc", label: "Vehicle Document" },
 ];
 
@@ -154,6 +159,22 @@ const Section = ({
   </div>
 );
 
+// ek company / ek garage ka card (multiple items ke liye)
+const ItemCard = ({
+  title,
+  border,
+  children,
+}: {
+  title: string;
+  border: string;
+  children: React.ReactNode;
+}) => (
+  <div className={`rounded-xl border bg-white p-4 ${border}`}>
+    <p className="mb-4 text-base font-semibold text-slate-800">{title}</p>
+    {children}
+  </div>
+);
+
 const GRID = "grid grid-cols-1 gap-x-6 gap-y-5 sm:grid-cols-2 lg:grid-cols-3";
 
 const VendorModalView: React.FC<Props> = ({ vendor: initial, onClose }) => {
@@ -215,7 +236,9 @@ const VendorModalView: React.FC<Props> = ({ vendor: initial, onClose }) => {
 
   const blue = "bg-blue-100 text-blue-600";
   const purple = "bg-purple-100 text-purple-600";
+  const indigo = "bg-indigo-100 text-indigo-600";
   const green = "bg-green-100 text-green-600";
+  const rose = "bg-rose-100 text-rose-600";
   const amber = "bg-amber-100 text-amber-600";
 
   const contacts = [
@@ -239,6 +262,9 @@ const VendorModalView: React.FC<Props> = ({ vendor: initial, onClose }) => {
     },
   ];
 
+  const companies: any[] = Array.isArray(data.companies) ? data.companies : [];
+  const garages: any[] = Array.isArray(data.garages) ? data.garages : [];
+
   const uploadedDocs = DOCS.filter((d) => data[d.key]);
 
   return (
@@ -259,7 +285,7 @@ const VendorModalView: React.FC<Props> = ({ vendor: initial, onClose }) => {
             <div>
               <h2 className="text-2xl font-bold text-slate-900">{name}</h2>
               <p className="text-base text-slate-500">
-                Vendor ID: {txt(data.id)}
+                Vendor ID: {txt(data.venderCode ?? data.vender_code ?? data.id)}
                 {data.shortName ? ` · ${data.shortName}` : ""}
               </p>
               <div className="mt-1 flex flex-wrap gap-2">
@@ -317,34 +343,30 @@ const VendorModalView: React.FC<Props> = ({ vendor: initial, onClose }) => {
                 iconClass={blue}
               />
               <Field
+                label="Vendor Code"
+                value={txt(data.venderCode ?? data.vender_code)}
+                Icon={Hash}
+                iconClass={blue}
+              />
+              <Field
                 label="Short Name"
                 value={txt(data.shortName)}
                 Icon={Tag}
                 iconClass={blue}
               />
               <Field
-                label="Email"
-                value={txt(data.email)}
-                Icon={Mail}
+                label="Region"
+                value={txt(data.region)}
+                Icon={Globe2}
                 iconClass={blue}
+                badge="bg-blue-100 text-blue-800"
               />
               <Field
-                label="Phone"
-                value={txt(data.phone)}
-                Icon={Phone}
+                label="Vendor Category"
+                value={txt(data.vendorCategory)}
+                Icon={Truck}
                 iconClass={blue}
-              />
-              <Field
-                label="Aadhaar Number"
-                value={txt(data.aadhaarNumber)}
-                Icon={IdCard}
-                iconClass={blue}
-              />
-              <Field
-                label="Address"
-                value={txt(data.address)}
-                Icon={Home}
-                iconClass={blue}
+                badge="bg-indigo-100 text-indigo-800"
               />
             </div>
           </Section>
@@ -385,129 +407,209 @@ const VendorModalView: React.FC<Props> = ({ vendor: initial, onClose }) => {
             </div>
           </Section>
 
-          {/* Company */}
+          {/* Companies (multiple) - har company ke saath uski bank details */}
           <Section
-            title="Company Details"
+            title={`Company Details${companies.length ? ` (${companies.length})` : ""}`}
             Icon={Building2}
             wrap="border-purple-200 bg-purple-50/40"
             head="border-purple-200 bg-purple-50 text-purple-900"
           >
-            <div className={GRID}>
-              <Field
-                label="Company Name"
-                value={txt(data.companyName)}
-                Icon={Building2}
-                iconClass={purple}
-              />
-              <Field
-                label="Company Type"
-                value={txt(data.companyType)}
-                Icon={Briefcase}
-                iconClass={purple}
-                badge="bg-purple-100 text-purple-800"
-              />
-              <Field
-                label="Company PAN"
-                value={txt(data.companyPanNumber)}
-                Icon={IdCard}
-                iconClass={purple}
-              />
-              <Field
-                label="Registration Number"
-                value={txt(data.companyRegisteredNumber)}
-                Icon={FileText}
-                iconClass={purple}
-              />
-              <Field
-                label="GST Number"
-                value={txt(data.gstNumber)}
-                Icon={Hash}
-                iconClass={purple}
-              />
-              <Field
-                label="Business Number"
-                value={txt(data.businessNumber)}
-                Icon={Hash}
-                iconClass={purple}
-              />
-              <Field
-                label="Fleet Details"
-                value={txt(data.cooperativeName)}
-                Icon={Truck}
-                iconClass={purple}
-              />
-              <Field
-                label="Cooperative Number"
-                value={txt(data.cooperativeNumber)}
-                Icon={Hash}
-                iconClass={purple}
-              />
-            </div>
+            {companies.length === 0 ? (
+              <p className="text-base text-slate-500">
+                No company details added.
+              </p>
+            ) : (
+              <div className="space-y-5">
+                {companies.map((c, i) => {
+                  const cheque = c.cancelledCheque
+                    ? String(c.cancelledCheque)
+                    : "";
+                  return (
+                    <ItemCard
+                      key={c.id ?? i}
+                      title={`Company ${i + 1}: ${txt(c.companyName)}`}
+                      border="border-purple-100"
+                    >
+                      <div className={GRID}>
+                        <Field
+                          label="Company Name"
+                          value={txt(c.companyName)}
+                          Icon={Building2}
+                          iconClass={purple}
+                        />
+                        <Field
+                          label="Company Type"
+                          value={txt(c.companyType)}
+                          Icon={Briefcase}
+                          iconClass={purple}
+                          badge="bg-purple-100 text-purple-800"
+                        />
+                        <Field
+                          label="Company PAN"
+                          value={txt(c.companyPanNumber)}
+                          Icon={IdCard}
+                          iconClass={purple}
+                        />
+                        <Field
+                          label="Registration Number"
+                          value={txt(c.companyRegisteredNumber)}
+                          Icon={FileText}
+                          iconClass={purple}
+                        />
+                        <Field
+                          label="GST Number"
+                          value={txt(c.gstNumber)}
+                          Icon={Hash}
+                          iconClass={purple}
+                        />
+                        <Field
+                          label="Business Number"
+                          value={txt(c.businessNumber)}
+                          Icon={Hash}
+                          iconClass={purple}
+                        />
+                        <Field
+                          label="Fleet Details"
+                          value={txt(c.cooperativeName)}
+                          Icon={Truck}
+                          iconClass={purple}
+                        />
+                        <Field
+                          label="Cooperative Number"
+                          value={txt(c.cooperativeNumber)}
+                          Icon={Hash}
+                          iconClass={purple}
+                        />
+                        <Field
+                          label="Registered Address"
+                          value={txt(c.registeredAddress)}
+                          Icon={MapPin}
+                          iconClass={purple}
+                        />
+                      </div>
+
+                      {/* Bank details of this company */}
+                      <div className="mt-5 border-t border-purple-100 pt-4">
+                        <p className="mb-4 text-sm font-semibold text-rose-700">
+                          Bank Details
+                        </p>
+                        <div className={GRID}>
+                          <Field
+                            label="Bank Name"
+                            value={txt(c.bankName)}
+                            Icon={Landmark}
+                            iconClass={rose}
+                          />
+                          <Field
+                            label="Account Number"
+                            value={txt(c.bankAccountNumber)}
+                            Icon={CreditCard}
+                            iconClass={rose}
+                          />
+                          <Field
+                            label="Account Holder Name"
+                            value={txt(c.accountHolderName)}
+                            Icon={UserRound}
+                            iconClass={rose}
+                          />
+                          <Field
+                            label="IFSC Code"
+                            value={txt(c.ifscCode)}
+                            Icon={Wallet}
+                            iconClass={rose}
+                          />
+                        </div>
+
+                        {cheque && (
+                          <a
+                            href={cheque}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="mt-4 inline-flex items-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-medium text-rose-700 transition hover:bg-rose-100"
+                          >
+                            <FileText size={16} />
+                            View Cancelled Cheque
+                            <ExternalLink size={14} />
+                          </a>
+                        )}
+                      </div>
+                    </ItemCard>
+                  );
+                })}
+              </div>
+            )}
           </Section>
 
-          {/* Addresses */}
+          {/* Vendor address */}
           <Section
             title="Address"
             Icon={MapPin}
             wrap="border-green-200 bg-green-50/40"
             head="border-green-200 bg-green-50 text-green-900"
           >
-            <div className="space-y-5">
-              <div className={GRID}>
-                <Field
-                  label="Vendor Address"
-                  value={txt(data.personalInfo?.personalAddress)}
-                  Icon={Home}
-                  iconClass={green}
-                />
-                <Field
-                  label="City"
-                  value={txt(data.personalInfo?.personalCity)}
-                  Icon={Building2}
-                  iconClass={green}
-                />
-                <Field
-                  label="State"
-                  value={txt(data.personalInfo?.personalState)}
-                  Icon={Landmark}
-                  iconClass={green}
-                />
-              </div>
-              <div className="border-t border-green-100 pt-5">
-                <div className={GRID}>
-                  <Field
-                    label="Registered Address"
-                    value={txt(data.registeredAddress)}
-                    Icon={MapPin}
-                    iconClass={green}
-                  />
-                  <Field
-                    label="Garage Address"
-                    value={txt(data.garageAddress)}
-                    Icon={Warehouse}
-                    iconClass={green}
-                  />
-                  <Field
-                    label="Garage Phone"
-                    value={txt(data.garagePhone)}
-                    Icon={Phone}
-                    iconClass={green}
-                  />
-                  <Field
-                    label="Company City"
-                    value={txt(data.companyinfo?.companyCity)}
-                    Icon={Building2}
-                    iconClass={green}
-                  />
-                  <Field
-                    label="Company State"
-                    value={txt(data.companyinfo?.companyState)}
-                    Icon={Landmark}
-                    iconClass={green}
-                  />
-                </div>
-              </div>
+            <div className={GRID}>
+              <Field
+                label="Vendor Address"
+                value={txt(data.personalInfo?.personalAddress)}
+                Icon={Home}
+                iconClass={green}
+              />
+              <Field
+                label="City"
+                value={txt(data.personalInfo?.personalCity)}
+                Icon={Building2}
+                iconClass={green}
+              />
+              <Field
+                label="State"
+                value={txt(data.personalInfo?.personalState)}
+                Icon={Landmark}
+                iconClass={green}
+              />
             </div>
+          </Section>
+
+          {/* Garages (multiple) */}
+          <Section
+            title={`Garages${garages.length ? ` (${garages.length})` : ""}`}
+            Icon={Warehouse}
+            wrap="border-teal-200 bg-teal-50/40"
+            head="border-teal-200 bg-teal-50 text-teal-900"
+          >
+            {garages.length === 0 ? (
+              <p className="text-base text-slate-500">No garages added.</p>
+            ) : (
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                {garages.map((g, i) => (
+                  <ItemCard
+                    key={g.id ?? i}
+                    title={`Garage ${i + 1}`}
+                    border="border-teal-100"
+                  >
+                    <div className="space-y-4">
+                      <Field
+                        label="Garage Address"
+                        value={txt(g.garageAddress)}
+                        Icon={MapPin}
+                        iconClass="bg-teal-100 text-teal-600"
+                      />
+                      <Field
+                        label="Garage Manager"
+                        value={txt(g.garageManager)}
+                        Icon={User}
+                        iconClass="bg-teal-100 text-teal-600"
+                      />
+                      <Field
+                        label="Garage Phone"
+                        value={txt(g.garagePhone)}
+                        Icon={Phone}
+                        iconClass="bg-teal-100 text-teal-600"
+                      />
+                    </div>
+                  </ItemCard>
+                ))}
+              </div>
+            )}
           </Section>
 
           {/* Documents */}
