@@ -36,7 +36,7 @@ const CallsTable: React.FC<Props> = ({ page, onPage }) => {
             <TH>Phone</TH>
             <TH>Direction</TH>
             <TH>Response</TH>
-            <TH>Via (IVR route)</TH>
+            <TH>Department</TH>
             <TH>Received by</TH>
             <TH>Missed by</TH>
             <TH right>Duration</TH>

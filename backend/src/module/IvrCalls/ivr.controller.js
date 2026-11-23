@@ -4,9 +4,12 @@ import { asyncHandler } from "../../utils/asyncHandler.js";
 import {
   DIRECTIONS,
   FOLLOWUP_STATUS,
+  MISSED_TABS,
   HOURS_FILTERS,
   WORK_START,
   WORK_END,
+  SUNDAY_START,
+  SUNDAY_END,
 } from "./ivr.constants.js";
 import { isValidDate, nowIST, todayIST, toInt } from "./ivr.utils.js";
 import { accessLevel, canManage } from "./ivr.access.js";
@@ -44,11 +47,19 @@ const readFilters = (q) => {
   const direction = q.direction || undefined;
   if (direction && !DIRECTIONS.includes(direction)) throw new ApiError(400, "Invalid direction");
 
+  const timeOk = (v) => (v === undefined || v === "" ? undefined : /^([01]\d|2[0-3]):[0-5]\d$/.test(String(v)) ? String(v) : null);
+  const timeFrom = timeOk(q.timeFrom);
+  const timeTo = timeOk(q.timeTo);
+  if (timeFrom === null || timeTo === null) throw new ApiError(400, "timeFrom/timeTo must be HH:MM");
+
   return {
     from,
     to,
     hours,
     direction,
+    timeFrom,
+    timeTo,
+    department: q.department ? String(q.department).trim() : undefined,
     response: q.response ? String(q.response).toLowerCase() : undefined,
     agent: q.agent ? String(q.agent).trim() : undefined,
     search: q.search ? String(q.search).trim() : undefined,
@@ -75,7 +86,7 @@ export const getCalls = asyncHandler(async (req, res) => {
         total,
         page: paging.page,
         limit: paging.limit,
-        workingHours: { start: WORK_START, end: WORK_END },
+        workingHours: { start: WORK_START, end: WORK_END, sundayStart: SUNDAY_START, sundayEnd: SUNDAY_END },
       },
       "Calls fetched",
     ),
@@ -95,7 +106,7 @@ export const getMissedCalls = asyncHandler(async (req, res) => {
   const paging = readPaging(req.query);
 
   const status = req.query.status || undefined;
-  if (status && !FOLLOWUP_STATUS.includes(status)) throw new ApiError(400, "Invalid status");
+  if (status && !MISSED_TABS.includes(status)) throw new ApiError(400, "Invalid status");
 
   let droppedInIvr;
   if (req.query.droppedInIvr === "true") droppedInIvr = true;
@@ -297,4 +308,8 @@ export const searchStaff = asyncHandler(async (req, res) => {
   const q = String(req.query.q ?? "").trim();
   if (q.length < 2) return res.json(new ApiResponse(200, [], "Type at least 2 letters"));
   res.json(new ApiResponse(200, await model.searchStaff(q), "Staff found"));
+});
+
+export const getDepartments = asyncHandler(async (req, res) => {
+  res.json(new ApiResponse(200, await model.listDepartments(), "Departments fetched"));
 });

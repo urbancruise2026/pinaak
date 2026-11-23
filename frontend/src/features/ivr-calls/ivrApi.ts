@@ -9,6 +9,7 @@ import type {
   BreakReport,
   CallsResult,
   FollowupStatus,
+  MissedTab,
   IvrFilters,
   IvrAccess,
   MissedResult,
@@ -32,6 +33,9 @@ const filterParams = (f: IvrFilters) => ({
   direction: f.direction,
   hours: f.hours,
   search: f.search,
+  timeFrom: f.timeFrom,
+  timeTo: f.timeTo,
+  department: f.department,
 });
 
 export const getCalls = async (
@@ -63,7 +67,7 @@ export const getSummary = async (f: IvrFilters): Promise<SummaryResult> => {
 export const getMissed = async (
   f: IvrFilters,
   page: number,
-  status: FollowupStatus | "",
+  status: MissedTab,
   limit = 25,
 ): Promise<MissedResult> => {
   try {
@@ -178,6 +182,15 @@ export const getAgents = async (): Promise<AgentsResult> => {
     return data.data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Failed to fetch agents"));
+  }
+};
+
+export const getDepartments = async (): Promise<string[]> => {
+  try {
+    const { data } = await axiosInstance.get<ApiResponse<string[]>>("/ivr/departments");
+    return data.data;
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Failed to fetch departments"));
   }
 };
 

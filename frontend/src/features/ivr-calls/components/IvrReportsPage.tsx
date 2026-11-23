@@ -11,11 +11,12 @@ import {
   fetchAgents,
   fetchBreakReport,
   fetchCalls,
+  fetchDepartments,
   fetchMissed,
   fetchSummary,
   runSync,
 } from "../ivrSlice";
-import type { FollowupStatus, IvrFilters } from "../ivr.types";
+import type { IvrFilters, MissedTab } from "../ivr.types";
 import { canManageIvr, defaultFilters, ivrAccessLevel } from "../ivr.utils";
 import AgentsPanel from "./AgentsPanel";
 import BreakButton from "./BreakButton";
@@ -39,7 +40,7 @@ const TABS: { key: Tab; label: string; Icon: React.ComponentType<{ className?: s
 const Inner: React.FC = () => {
   const dispatch = useIvrDispatch();
   const toast = useNotice();
-  const { agents, error, loading, lastSync, missed, access } = useIvrState();
+  const { agents, departments, error, loading, lastSync, missed, access } = useIvrState();
 
   const currentUser = useSelector((s: RootState) => s.user.currentUser);
   const raw = (currentUser as any) ?? {};
@@ -60,17 +61,19 @@ const Inner: React.FC = () => {
   // IVR admin: the backend answer wins, local rule is the fallback while loading.
   const canManage = access?.canManage ?? canManageIvr(role, userId);
 
+  const [showFilters, setShowFilters] = React.useState(false);
   const [tab, setTab] = React.useState<Tab>("missed");
   const visibleTabs = TABS.filter((t) => (limited ? t.key === "missed" || t.key === "calls" : t.key !== "agents" || canManage));
   const [filters, setFilters] = React.useState<IvrFilters>(defaultFilters);
   const [callsPage, setCallsPage] = React.useState(1);
   const [missedPage, setMissedPage] = React.useState(1);
-  const [missedStatus, setMissedStatus] = React.useState<FollowupStatus | "">("");
+  const [missedStatus, setMissedStatus] = React.useState<MissedTab>("");
 
   // agent dropdown list (names as MyOperator reports them)
   React.useEffect(() => {
     if (allowed) {
       dispatch(fetchAgents());
+      dispatch(fetchDepartments());
       dispatch(fetchAccess());
     }
   }, [allowed, dispatch]);
@@ -122,17 +125,17 @@ const Inner: React.FC = () => {
   }
 
   const agentNames = (agents?.agents ?? []).filter((a) => a.isActive).map((a) => a.ivrName);
-  const redCount = missed?.counts.missed ?? 0;
+  const redCount = missed?.counts.pending ?? 0;
 
   return (
     <div className="min-h-screen bg-slate-50">
       {/* fixed heading: title, actions, filters, tabs */}
-      <div className="sticky top-0 z-30 border-b border-slate-200 bg-white/95 px-4 pt-3 shadow-sm backdrop-blur">
+      <div className="z-30 border-b border-slate-200 bg-white/95 px-3 pt-3 shadow-sm backdrop-blur sm:px-4 lg:sticky lg:top-0">
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div>
             <h1 className="text-lg font-bold text-slate-900">IVR Call Reports</h1>
             <p className="text-xs text-slate-500">
-              Times are IST. Working hours 10:00 - 21:30.
+              Times are IST. Working hours 9:30 - 21:30 (Sunday 10:30 - 18:30).
               {lastSync && !lastSync.skipped && ` Last manual sync: ${lastSync.saved ?? 0} calls.`}
             </p>
           </div>
@@ -151,16 +154,24 @@ const Inner: React.FC = () => {
           </div>
         </div>
 
-        <div className="mt-3">
+        <button
+          type="button"
+          onClick={() => setShowFilters((v) => !v)}
+          className="mt-2 rounded-lg border border-slate-300 px-3 py-1 text-xs font-semibold text-slate-700 lg:hidden"
+        >
+          {showFilters ? "Hide filters" : "Show filters"}
+        </button>
+        <div className={`mt-3 ${showFilters ? "block" : "hidden"} lg:block`}>
           <FiltersBar
             value={filters}
             agents={agentNames}
+            departments={departments}
             showDirection={tab === "calls" || tab === "summary"}
             onChange={onFilters}
           />
         </div>
 
-        <div className="mt-3 flex gap-1">
+        <div className="mt-3 flex gap-1 overflow-x-auto whitespace-nowrap">
           {visibleTabs.map((t) => (
             <button
               key={t.key}
@@ -180,7 +191,7 @@ const Inner: React.FC = () => {
         </div>
       </div>
 
-      <div className="space-y-4 p-4">
+      <div className="space-y-4 p-3 sm:p-4">
       {tab === "summary" && !limited && <SummaryPanel />}
       {tab === "missed" && (
         <MissedBoard

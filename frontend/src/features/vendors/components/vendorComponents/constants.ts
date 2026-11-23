@@ -112,7 +112,7 @@ export const emptyCompany = (): VendorCompany => ({
 // Vendor Categories (DB ENUM vendors.vendor_category se match honi chahiye)
 // ─────────────────────────────────────────────
 
-export const VENDOR_CATEGORIES = ["bus", "cab", "tempo_traveller", "other"];
+export const VENDOR_CATEGORIES = ["bus", "cab", "tempo_traveller", "other","urbania", "luxury_vehcles", "sleeper_bus", "semi-sleeper_bus"];
 
 // ─────────────────────────────────────────────
 // Initial Form State

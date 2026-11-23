@@ -2,24 +2,23 @@
 
 import React from "react";
 import { changeMissedStatus } from "../ivrSlice";
-import type { AgentState, FollowupStatus, MissedRow } from "../ivr.types";
+import type { AgentState, FollowupStatus, MissedRow, MissedTab } from "../ivr.types";
 import { STATUS_STYLE, formatDuration, splitDateTime } from "../ivr.utils";
 import { Card, Empty, Pager, StatusBadge, TH, TableShell, useIvrDispatch, useIvrState, useNotice } from "./shared";
 
 interface Props {
   page: number;
   onPage: (p: number) => void;
-  status: FollowupStatus | "";
-  onStatus: (s: FollowupStatus | "") => void;
+  status: MissedTab;
+  onStatus: (s: MissedTab) => void;
   canEdit: boolean;
   onChanged: () => void;
 }
 
-const TABS: { key: FollowupStatus | ""; label: string }[] = [
+const TABS: { key: MissedTab; label: string }[] = [
   { key: "", label: "All" },
-  { key: "missed", label: "Missed (red)" },
-  { key: "trying", label: "Trying (orange)" },
-  { key: "connected", label: "Connected (green)" },
+  { key: "pending", label: "Pending" },
+  { key: "connected", label: "Completed" },
 ];
 
 const STATE_CLS: Record<AgentState["state"], string> = {
@@ -46,7 +45,7 @@ const Tally: React.FC<{ label: string; total: number; connected: number; at: str
           {connected} connected{at ? ` (first ${time(at)})` : ""}
         </span>
       ) : (
-        <span className="ml-1 text-red-600">Missed</span>
+        <span className="ml-1 text-red-600">none connected</span>
       ))}
   </div>
 );
@@ -157,14 +156,13 @@ const MissedBoard: React.FC<Props> = ({ page, onPage, status, onStatus, canEdit,
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-3 gap-3">
-        <Card label="Missed - not reached" value={c?.missed ?? 0} tone="red" />
-        <Card label="Trying" value={c?.trying ?? 0} tone="orange" />
-        <Card label="Connected" value={c?.connected ?? 0} tone="green" />
+      <div className="grid grid-cols-2 gap-3">
+        <Card label="Pending" value={c?.pending ?? 0} hint="missed + trying" tone="red" />
+        <Card label="Completed" value={c?.connected ?? 0} hint="customer reached" tone="green" />
       </div>
       <p className="text-xs text-gray-500">
-        Status is automatic: green when a later call to or from the same number connected, orange when our agents
-        have called but not connected, red when nothing has happened yet.
+        Status is automatic. Completed (green): a later call to or from the same number connected. Pending: nobody
+        has reached the customer yet (red = no callback yet, orange = we tried, not connected).
       </p>
 
       <div className="flex flex-wrap gap-2">
@@ -189,7 +187,7 @@ const MissedBoard: React.FC<Props> = ({ page, onPage, status, onStatus, canEdit,
             <tr>
               <TH>Call time</TH>
               <TH>Phone</TH>
-              <TH>Via</TH>
+              <TH>Department</TH>
               <TH>Missed by / why</TH>
               <TH>Follow-up calls</TH>
               <TH>Status</TH>

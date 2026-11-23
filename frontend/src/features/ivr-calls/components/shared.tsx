@@ -117,7 +117,7 @@ export const Card: React.FC<{
 
 // Scroll box for a table: the heading row stays frozen while rows scroll.
 export const TableShell: React.FC<React.PropsWithChildren> = ({ children }) => (
-  <div className="max-h-[calc(100vh-18rem)] min-h-[12rem] overflow-auto">{children}</div>
+  <div className="max-h-[70vh] min-h-[12rem] overflow-auto lg:max-h-[calc(100vh-18rem)]">{children}</div>
 );
 
 export const TH: React.FC<React.PropsWithChildren<{ right?: boolean }>> = ({ children, right }) => (

@@ -10,6 +10,7 @@ import type {
   IvrAccess,
   IvrFilters,
   MissedResult,
+  MissedTab,
   MyBreakState,
   SummaryResult,
   SyncResult,
@@ -23,6 +24,7 @@ interface IvrState {
   missed: MissedResult | null;
   breaks: BreakReport | null;
   agents: AgentsResult | null;
+  departments: string[];
   accessMap: AccessMapAgent[] | null;
   access: IvrAccess | null;
   me: MyBreakState | null;
@@ -37,6 +39,7 @@ const initialState: IvrState = {
   missed: null,
   breaks: null,
   agents: null,
+  departments: [],
   accessMap: null,
   access: null,
   me: null,
@@ -83,7 +86,7 @@ export const fetchSummary = createAsyncThunk<SummaryResult, IvrFilters, { reject
 
 export const fetchMissed = createAsyncThunk<
   MissedResult,
-  { filters: IvrFilters; page: number; status: FollowupStatus | "" },
+  { filters: IvrFilters; page: number; status: MissedTab },
   { rejectValue: string }
 >("ivr/fetchMissed", async ({ filters, page, status }, { rejectWithValue }) => {
   try {
@@ -144,6 +147,17 @@ export const fetchAgents = createAsyncThunk<AgentsResult, void, { rejectValue: s
       return await api.getAgents();
     } catch (e) {
       return rejectWithValue(msg(e, "Failed to fetch agents"));
+    }
+  },
+);
+
+export const fetchDepartments = createAsyncThunk<string[], void, { rejectValue: string }>(
+  "ivr/fetchDepartments",
+  async (_, { rejectWithValue }) => {
+    try {
+      return await api.getDepartments();
+    } catch (e) {
+      return rejectWithValue(msg(e, "Failed to fetch departments"));
     }
   },
 );
@@ -298,6 +312,9 @@ const ivrSlice = createSlice({
     });
     track(fetchAgents, "agents", (s, p) => {
       s.agents = p;
+    });
+    track(fetchDepartments, "agents", (s, p) => {
+      s.departments = p;
     });
     track(runSync, "sync", (s, p) => {
       s.lastSync = p;
