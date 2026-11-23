@@ -1,13 +1,18 @@
 // Working window used by the "working hours" / "non-working hours" filters.
 // Times are IST wall-clock (ivr_call_logs.call_time is stored in IST).
-export const WORK_START = "10:00:00";
+// Mon-Sat 09:30-21:30, Sunday 10:30-18:30 (decided per call date).
+export const WORK_START = "09:30:00";
 export const WORK_END = "21:30:00";
+export const SUNDAY_START = "10:30:00";
+export const SUNDAY_END = "18:30:00";
 
 // Manual follow-up status of a missed call.
 //   missed    -> red     (default, nobody has reached the customer)
 //   trying    -> orange  (agent attempted a callback, not connected yet)
 //   connected -> green   (agent reached the customer)
 export const FOLLOWUP_STATUS = ["missed", "trying", "connected"];
+// Board tabs: "pending" = missed + trying, "connected" = completed.
+export const MISSED_TABS = ["pending", "connected"];
 
 // MyOperator /search returns numeric codes. They are NOT documented, so they
 // are filled in from GET /ivr/debug/codes. Unknown codes are saved as

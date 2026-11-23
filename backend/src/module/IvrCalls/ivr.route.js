@@ -28,6 +28,7 @@ router.get("/breaks", requireFull, c.getBreakReport);
 
 // Agents (read for everyone with access; changes for IVR admins only)
 router.get("/agents", c.getAgents);
+router.get("/departments", c.getDepartments);
 router.put("/agents/:id", requireManage, c.updateAgent);
 router.post("/agents/sync-myoperator", requireManage, c.syncMyOperatorUsersCtl);
 router.put("/agents/:id/receive-calls", requireManage, c.testReceiveCalls);

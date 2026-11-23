@@ -1,5 +1,5 @@
 import { hrmsPool, pool } from "../../config/mySqlDB.js";
-import { WORK_START, WORK_END } from "./ivr.constants.js";
+import { WORK_START, WORK_END, SUNDAY_START, SUNDAY_END } from "./ivr.constants.js";
 import { normalizePhone } from "./ivr.utils.js";
 
 // All DATETIME columns are IST wall-clock. Never use NOW() for them (the DB
@@ -18,6 +18,12 @@ const numberify = (row) =>
         : v,
     ]),
   );
+
+// SQL boolean: is this call inside working hours? Sunday (DAYOFWEEK = 1) has
+// its own shorter window. Only trusted constants are inlined.
+const workingSql = (col) =>
+  `((DAYOFWEEK(${col}) = 1 AND TIME(${col}) BETWEEN '${SUNDAY_START}' AND '${SUNDAY_END}')
+     OR (DAYOFWEEK(${col}) <> 1 AND TIME(${col}) BETWEEN '${WORK_START}' AND '${WORK_END}'))`;
 
 const PRESALES_ROLE_SQL = `(
   LOWER(r.role_name) LIKE '%presale%'
@@ -38,6 +44,9 @@ const buildCallFilters = ({
   response,
   hours,
   search,
+  timeFrom,
+  timeTo,
+  department,
 }) => {
   const where = ["c.call_time BETWEEN ? AND ?"];
   const params = [`${from} 00:00:00`, `${to} 23:59:59`];
@@ -51,11 +60,28 @@ const buildCallFilters = ({
     params.push(response);
   }
   if (hours === "working") {
-    where.push("TIME(c.call_time) BETWEEN ? AND ?");
-    params.push(WORK_START, WORK_END);
+    where.push(workingSql("c.call_time"));
   } else if (hours === "non_working") {
-    where.push("(TIME(c.call_time) < ? OR TIME(c.call_time) > ?)");
-    params.push(WORK_START, WORK_END);
+    where.push(`NOT ${workingSql("c.call_time")}`);
+  }
+  // custom time-of-day window (HH:MM, IST); from > to wraps past midnight
+  if (timeFrom && timeTo) {
+    if (timeFrom <= timeTo) {
+      where.push("TIME(c.call_time) BETWEEN ? AND ?");
+    } else {
+      where.push("(TIME(c.call_time) >= ? OR TIME(c.call_time) <= ?)");
+    }
+    params.push(`${timeFrom}:00`, `${timeTo}:59`);
+  } else if (timeFrom) {
+    where.push("TIME(c.call_time) >= ?");
+    params.push(`${timeFrom}:00`);
+  } else if (timeTo) {
+    where.push("TIME(c.call_time) <= ?");
+    params.push(`${timeTo}:59`);
+  }
+  if (department) {
+    where.push("c.via = ?");
+    params.push(department);
   }
   if (agent) {
     where.push(
@@ -253,7 +279,7 @@ export const getCalls = async (filters, { page, limit }) => {
        c.transferred_to AS transferredTo,
        c.duration_sec AS durationSec,
        c.recording_file AS recordingFile,
-       (TIME(c.call_time) BETWEEN '${WORK_START}' AND '${WORK_END}') AS isWorkingHours
+       ${workingSql("c.call_time")} AS isWorkingHours
      FROM ivr_call_logs c
      WHERE ${where.join(" AND ")}
      ORDER BY c.call_time DESC
@@ -282,8 +308,8 @@ export const getSummary = async (filters) => {
        COALESCE(SUM(c.direction = 'outgoing' AND c.response = 'connected'), 0) AS outgoingConnected,
        COALESCE(SUM(c.direction = 'outgoing' AND c.response <> 'connected'), 0) AS outgoingNotConnected,
        COALESCE(SUM(CASE WHEN c.response = 'connected' THEN c.duration_sec ELSE 0 END), 0) AS talkSec,
-       COALESCE(SUM(TIME(c.call_time) BETWEEN '${WORK_START}' AND '${WORK_END}'), 0) AS workingHoursCalls,
-       COALESCE(SUM(TIME(c.call_time) < '${WORK_START}' OR TIME(c.call_time) > '${WORK_END}'), 0) AS nonWorkingHoursCalls
+       COALESCE(SUM(${workingSql("c.call_time")}), 0) AS workingHoursCalls,
+       COALESCE(SUM(NOT ${workingSql("c.call_time")}), 0) AS nonWorkingHoursCalls
      FROM ivr_call_logs c
      WHERE ${w}`,
     params,
@@ -295,9 +321,10 @@ export const getSummary = async (filters) => {
     `SELECT
        a.agent_name AS agentName,
        COALESCE(SUM(a.role = 'received' AND c.direction = 'incoming'), 0) AS incomingAnswered,
-       COALESCE(SUM(a.role = 'missed'   AND c.direction = 'incoming'), 0) AS incomingMissed,
-       COALESCE(SUM(a.role = 'missed'   AND c.direction = 'incoming' AND c.response <> 'connected'), 0)
-         AS incomingMissedNobodyAnswered,
+       -- the call rang this agent and nobody answered it (a call that rang
+       -- several agents counts once for each of them)
+       COALESCE(COUNT(DISTINCT CASE WHEN a.role = 'missed' AND c.direction = 'incoming'
+                                     AND c.response <> 'connected' THEN c.uid END), 0) AS incomingUnanswered,
        COALESCE(SUM(a.role = 'received' AND c.direction = 'outgoing'), 0) AS outgoingConnected,
        COALESCE(SUM(a.role = 'missed'   AND c.direction = 'outgoing'), 0) AS outgoingNotConnected,
        COALESCE(SUM(CASE WHEN a.role = 'received' THEN c.duration_sec ELSE 0 END), 0) AS talkSec
@@ -309,8 +336,80 @@ export const getSummary = async (filters) => {
     params,
   );
 
+  // Calls that never reached any agent (dropped in IVR, voicemail, ...).
+  // Together with the agent rows these make up the Total row.
+  const [[unassigned]] = await pool.query(
+    `SELECT
+       COALESCE(SUM(c.direction = 'incoming' AND c.response = 'connected'), 0) AS incomingAnswered,
+       COALESCE(SUM(c.direction = 'incoming' AND c.response <> 'connected'), 0) AS incomingUnanswered,
+       COALESCE(SUM(c.direction = 'outgoing' AND c.response = 'connected'), 0) AS outgoingConnected,
+       COALESCE(SUM(c.direction = 'outgoing' AND c.response <> 'connected'), 0) AS outgoingNotConnected,
+       COALESCE(SUM(CASE WHEN c.response = 'connected' THEN c.duration_sec ELSE 0 END), 0) AS talkSec
+     FROM ivr_call_logs c
+     WHERE ${w}
+       AND NOT EXISTS (SELECT 1 FROM ivr_call_agents a
+                        WHERE a.call_uid = c.uid AND a.role IN ('missed','received'))`,
+    params,
+  );
+
+  // Unanswered incoming calls: how many got connected later (same logic as
+  // the Missed calls board) and how many are still pending.
+  const [[fu]] = await pool.query(
+    `SELECT
+       COALESCE(SUM(t.resolved), 0) AS resolved,
+       COALESCE(SUM(1 - t.resolved), 0) AS pending
+     FROM (
+       SELECT (
+         COALESCE(f.status = 'connected', 0)
+         OR EXISTS (SELECT 1 FROM ivr_call_logs x WHERE x.phone = c.phone AND x.direction = 'incoming'
+                      AND x.response = 'connected' AND x.call_time > c.call_time)
+         OR EXISTS (SELECT 1 FROM ivr_call_logs x WHERE x.phone = c.phone AND x.direction = 'outgoing'
+                      AND x.response = 'connected' AND x.call_time > c.call_time)
+       ) AS resolved
+       FROM ivr_call_logs c
+       LEFT JOIN ivr_missed_followups f ON f.call_uid = c.uid
+       WHERE ${w} AND c.direction = 'incoming' AND c.response IN ('missed','voicemail')
+     ) t`,
+    params,
+  );
+
+  // Unanswered incoming calls per hour of day (0-23) for the chart.
+  const [hourRows] = await pool.query(
+    `SELECT HOUR(c.call_time) AS h, COUNT(*) AS n
+       FROM ivr_call_logs c
+      WHERE ${w} AND c.direction = 'incoming' AND c.response <> 'connected'
+      GROUP BY HOUR(c.call_time)`,
+    params,
+  );
+  // Unanswered incoming calls per department (IVR route): dropped in IVR,
+  // missed by agent, voicemail.
+  const [deptRows] = await pool.query(
+    `SELECT
+       COALESCE(NULLIF(c.via, ''), 'No department') AS department,
+       COUNT(*) AS total,
+       COALESCE(SUM(c.response = 'missed' AND (c.missed_by IS NULL OR c.missed_by = '')), 0) AS droppedInIvr,
+       COALESCE(SUM(c.response = 'missed' AND c.missed_by IS NOT NULL AND c.missed_by <> ''), 0) AS missedByAgent,
+       COALESCE(SUM(c.response = 'voicemail'), 0) AS voicemail
+     FROM ivr_call_logs c
+     WHERE ${w} AND c.direction = 'incoming' AND c.response <> 'connected'
+     GROUP BY department
+     ORDER BY total DESC`,
+    params,
+  );
+
+  const unansweredByHour = Array.from({ length: 24 }, () => 0);
+  for (const r of hourRows) unansweredByHour[Number(r.h)] = Number(r.n);
+
+  const t = numberify(totals);
   return {
-    totals: numberify(totals),
+    totals: {
+      ...t,
+      unansweredResolved: Number(fu.resolved),
+      unansweredPending: Number(fu.pending),
+    },
+    unansweredByHour,
+    unassigned: numberify(unassigned),
+    unansweredByDepartment: deptRows.map(({ department, ...rest }) => ({ department, ...numberify(rest) })),
     agents: agents.map(({ agentName, ...rest }) => ({ agentName, ...numberify(rest) })),
   };
 };
@@ -323,11 +422,11 @@ export const getSummary = async (filters) => {
 // someone marked it connected), orange if we tried (or a manual attempt/trying),
 // else red. Manual "connected" still overrides.
 export const getMissedCalls = async (
-  { from, to, agent, hours, search, status, droppedInIvr },
+  { from, to, agent, hours, search, timeFrom, timeTo, department, status, droppedInIvr },
   { page, limit },
   nowStr,
 ) => {
-  const base = buildCallFilters({ from, to, agent, hours, search });
+  const base = buildCallFilters({ from, to, agent, hours, search, timeFrom, timeTo, department });
   const where = [
     ...base.where,
     "c.direction = 'incoming'",
@@ -382,16 +481,19 @@ export const getMissedCalls = async (
     params,
   );
   const numCounts = numberify(counts);
-  const total = status ? numCounts[status] : numCounts.missed + numCounts.trying + numCounts.connected;
+  // "pending" = missed + trying, "connected" = completed
+  const pendingCount = numCounts.missed + numCounts.trying;
+  numCounts.pending = pendingCount;
+  const total = status === "pending" ? pendingCount : status ? numCounts[status] : pendingCount + numCounts.connected;
 
   const offset = (page - 1) * limit;
   const [rows] = await pool.query(
     `${cte}
      SELECT eff.* FROM eff
-     ${status ? "WHERE followupStatus = ?" : ""}
+     ${status === "pending" ? "WHERE followupStatus IN ('missed','trying')" : status ? "WHERE followupStatus = ?" : ""}
      ORDER BY ct DESC
      LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
-    status ? [...params, status] : params,
+    status && status !== "pending" ? [...params, status] : params,
   );
 
   // Per missed agent: were they on a break, or on another call, at that moment?
@@ -783,4 +885,12 @@ export const getBreaks = async ({ from, to, agentId }, nowStr) => {
     durationMin: Number(r.durationMin),
     missedDuringBreak: Number(r.missedDuringBreak),
   }));
+};
+
+// Departments = the IVR route / department name MyOperator reports per call.
+export const listDepartments = async () => {
+  const [rows] = await pool.query(
+    `SELECT DISTINCT via FROM ivr_call_logs WHERE via IS NOT NULL AND via <> '' ORDER BY via`,
+  );
+  return rows.map((r) => r.via);
 };

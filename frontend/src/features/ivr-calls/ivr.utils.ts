@@ -6,7 +6,7 @@ export const todayIST = (): string =>
 
 export const defaultFilters = (): IvrFilters => {
   const t = todayIST();
-  return { from: t, to: t, agent: "", direction: "", hours: "all", search: "" };
+  return { from: t, to: t, agent: "", direction: "", hours: "all", search: "", timeFrom: "", timeTo: "", department: "" };
 };
 
 // 125 -> "2:05", 3700 -> "1:01:40"

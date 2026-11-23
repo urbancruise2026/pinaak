@@ -1,6 +1,8 @@
 export type FollowupStatus = "missed" | "trying" | "connected";
 export type HoursFilter = "all" | "working" | "non_working";
 export type Direction = "incoming" | "outgoing";
+// Missed-calls board tabs: pending = missed + trying, connected = completed
+export type MissedTab = "" | "pending" | "connected";
 
 export interface IvrFilters {
   from: string; // YYYY-MM-DD (IST)
@@ -9,6 +11,9 @@ export interface IvrFilters {
   direction: "" | Direction;
   hours: HoursFilter;
   search: string;
+  timeFrom: string; // HH:MM custom time window, "" = off
+  timeTo: string;
+  department: string; // IVR department / route name, "" = all
 }
 
 export interface Paged<T> {
@@ -34,7 +39,7 @@ export interface CallRow {
 }
 
 export interface CallsResult extends Paged<CallRow> {
-  workingHours: { start: string; end: string };
+  workingHours: { start: string; end: string; sundayStart: string; sundayEnd: string };
 }
 
 export interface SummaryTotals {
@@ -50,13 +55,14 @@ export interface SummaryTotals {
   talkSec: number;
   workingHoursCalls: number;
   nonWorkingHoursCalls: number;
+  unansweredResolved: number; // unanswered incoming calls that got connected later
+  unansweredPending: number; // unanswered incoming calls still not reached
 }
 
 export interface AgentSummary {
   agentName: string;
   incomingAnswered: number;
-  incomingMissed: number;
-  incomingMissedNobodyAnswered: number;
+  incomingUnanswered: number;
   outgoingConnected: number;
   outgoingNotConnected: number;
   talkSec: number;
@@ -64,6 +70,15 @@ export interface AgentSummary {
 
 export interface SummaryResult {
   totals: SummaryTotals;
+  unansweredByHour: number[]; // 24 values, hour of day (IST)
+  unansweredByDepartment: {
+    department: string;
+    total: number;
+    droppedInIvr: number;
+    missedByAgent: number;
+    voicemail: number;
+  }[];
+  unassigned: Omit<AgentSummary, "agentName">; // calls that never reached any agent
   agents: AgentSummary[];
 }
 
@@ -105,6 +120,7 @@ export interface MissedCounts {
   missed: number;
   trying: number;
   connected: number;
+  pending: number; // missed + trying
 }
 
 export interface MissedResult extends Paged<MissedRow> {

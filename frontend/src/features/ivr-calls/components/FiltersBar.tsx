@@ -7,6 +7,7 @@ import { defaultFilters, todayIST } from "../ivr.utils";
 interface Props {
   value: IvrFilters;
   agents: string[];
+  departments: string[];
   showDirection?: boolean;
   onChange: (next: IvrFilters) => void;
 }
@@ -19,7 +20,7 @@ const shiftDays = (days: number) => {
   return d.toLocaleDateString("en-CA", { timeZone: "Asia/Kolkata" });
 };
 
-const FiltersBar: React.FC<Props> = ({ value, agents, showDirection = true, onChange }) => {
+const FiltersBar: React.FC<Props> = ({ value, agents, departments, showDirection = true, onChange }) => {
   const set = <K extends keyof IvrFilters>(k: K, v: IvrFilters[K]) => onChange({ ...value, [k]: v });
   const [search, setSearch] = React.useState(value.search);
 
@@ -70,6 +71,18 @@ const FiltersBar: React.FC<Props> = ({ value, agents, showDirection = true, onCh
       </div>
 
       <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-500">Department</label>
+        <select className={input} value={value.department} onChange={(e) => set("department", e.target.value)}>
+          <option value="">All departments</option>
+          {departments.map((d) => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="flex flex-col gap-1">
         <label className="text-xs text-gray-500">Agent</label>
         <select className={input} value={value.agent} onChange={(e) => set("agent", e.target.value)}>
           <option value="">All agents</option>
@@ -97,12 +110,41 @@ const FiltersBar: React.FC<Props> = ({ value, agents, showDirection = true, onCh
       )}
 
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-gray-500">Hours (10:00-21:30)</label>
+        <label className="text-xs text-gray-500">Hours</label>
         <select className={input} value={value.hours} onChange={(e) => set("hours", e.target.value as HoursFilter)}>
           <option value="all">All hours</option>
-          <option value="working">Working hours</option>
+          <option value="working">Working (9:30-21:30, Sun 10:30-18:30)</option>
           <option value="non_working">Non-working hours</option>
         </select>
+      </div>
+
+      <div className="flex flex-col gap-1">
+        <label className="text-xs text-gray-500">Time from - to (custom)</label>
+        <div className="flex items-center gap-1">
+          <input
+            type="time"
+            className={input}
+            value={value.timeFrom}
+            onChange={(e) => set("timeFrom", e.target.value)}
+          />
+          <span className="text-xs text-gray-400">to</span>
+          <input
+            type="time"
+            className={input}
+            value={value.timeTo}
+            onChange={(e) => set("timeTo", e.target.value)}
+          />
+          {(value.timeFrom || value.timeTo) && (
+            <button
+              type="button"
+              title="Clear time"
+              className="rounded border px-1.5 py-1 text-xs text-gray-500"
+              onClick={() => onChange({ ...value, timeFrom: "", timeTo: "" })}
+            >
+              x
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-col gap-1">
