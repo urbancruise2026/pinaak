@@ -42,6 +42,7 @@ router.get("/staff-search", requireManage, c.searchStaff);
 router.post("/sync", requireFull, c.syncNow);
 router.get("/debug/sample", requireSuperAdmin, c.debugSample);
 router.get("/debug/codes", requireSuperAdmin, c.debugCodes);
+router.get("/debug/webhook-events", requireSuperAdmin, c.debugWebhookEvents);
 router.get("/debug/myoperator-users", requireSuperAdmin, c.debugMyOperatorUsers);
 
 export default router;

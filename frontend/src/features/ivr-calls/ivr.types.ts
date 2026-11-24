@@ -23,9 +23,21 @@ export interface Paged<T> {
   limit: number;
 }
 
+// Customer + latest lead matched from the customers / leads tables by phone.
+export interface ContactInfo {
+  customerId: number;
+  name: string | null;
+  leadId: number | null;
+  leadStatus: string | null;
+  remarks: string | null;
+  lostReason: string | null; // only when the lead is LOST
+  leadDate: string | null;
+}
+
 export interface CallRow {
   uid: string;
   phone: string;
+  contact: ContactInfo | null;
   callTime: string; // "YYYY-MM-DD HH:mm:ss" IST
   via: string | null;
   direction: Direction;
@@ -93,6 +105,7 @@ export interface AgentState {
 export interface MissedRow {
   uid: string;
   phone: string;
+  contact: ContactInfo | null;
   callTime: string;
   via: string | null;
   response: string;

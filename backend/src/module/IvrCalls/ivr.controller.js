@@ -13,6 +13,7 @@ import {
 } from "./ivr.constants.js";
 import { isValidDate, nowIST, todayIST, toInt } from "./ivr.utils.js";
 import { accessLevel, canManage } from "./ivr.access.js";
+import { listWebhookEvents } from "./ivr.webhook.js";
 import {
   beginBreak,
   calibrateCodes,
@@ -312,4 +313,9 @@ export const searchStaff = asyncHandler(async (req, res) => {
 
 export const getDepartments = asyncHandler(async (req, res) => {
   res.json(new ApiResponse(200, await model.listDepartments(), "Departments fetched"));
+});
+
+// Super admin: last webhook payloads exactly as MyOperator sent them.
+export const debugWebhookEvents = asyncHandler(async (req, res) => {
+  res.json(new ApiResponse(200, await listWebhookEvents(req.query.limit), "Webhook events"));
 });

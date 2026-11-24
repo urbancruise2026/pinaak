@@ -257,6 +257,70 @@ export const updateAgent = async (id, { staffId, staffName, isActive }) => {
 /* Reports                                                            */
 /* ------------------------------------------------------------------ */
 
+/* ------------------- customer / lead matching ------------------- */
+
+const last10 = (v) => String(v ?? "").replace(/\D/g, "").slice(-10);
+const SQL_DIGITS = (col) => `RIGHT(REGEXP_REPLACE(IFNULL(${col}, ''), '[^0-9]', ''), 10)`;
+
+// Match each row's phone with customers.customerPhone / alternatePhone (last 10
+// digits) and attach the customer's name plus the latest lead's status,
+// remarks and (when LOST) lost reason. Same database as the IVR tables.
+// Adds `contact` = null | { customerId, name, leadId, leadStatus, remarks, lostReason, leadDate }.
+const attachContacts = async (rows) => {
+  const keys = [...new Set(rows.map((r) => last10(r.phone)).filter((k) => k.length === 10))];
+  if (keys.length === 0) return rows.map((r) => ({ ...r, contact: null }));
+
+  const [custs] = await pool.query(
+    `SELECT id, firstName, middleName, lastName,
+            ${SQL_DIGITS("customerPhone")} AS p1,
+            ${SQL_DIGITS("alternatePhone")} AS p2
+       FROM customers
+      WHERE ${SQL_DIGITS("customerPhone")} IN (?) OR ${SQL_DIGITS("alternatePhone")} IN (?)
+      ORDER BY id`,
+    [keys, keys],
+  );
+
+  // newest customer wins when a number is saved on more than one
+  const byPhone = new Map();
+  for (const c of custs) {
+    if (c.p1) byPhone.set(c.p1, c);
+    if (c.p2 && !byPhone.has(c.p2)) byPhone.set(c.p2, c);
+  }
+
+  const customerIds = [...new Set([...byPhone.values()].map((c) => c.id))];
+  const leadByCustomer = new Map();
+  if (customerIds.length) {
+    const [leads] = await pool.query(
+      `SELECT l.customer_id, l.id, l.status, l.remarks, l.lost_reason, l.lostReasonDetails, l.created_at
+         FROM leads l
+         JOIN (SELECT customer_id, MAX(id) AS mid FROM leads WHERE customer_id IN (?) GROUP BY customer_id) m
+           ON m.mid = l.id`,
+      [customerIds],
+    );
+    for (const l of leads) leadByCustomer.set(Number(l.customer_id), l);
+  }
+
+  return rows.map((r) => {
+    const c = byPhone.get(last10(r.phone));
+    if (!c) return { ...r, contact: null };
+    const l = leadByCustomer.get(Number(c.id));
+    const name = [c.firstName, c.middleName, c.lastName].map((x) => String(x ?? "").trim()).filter(Boolean).join(" ");
+    const isLost = String(l?.status ?? "").toUpperCase() === "LOST";
+    return {
+      ...r,
+      contact: {
+        customerId: Number(c.id),
+        name: name || null,
+        leadId: l ? Number(l.id) : null,
+        leadStatus: l?.status ?? null,
+        remarks: l?.remarks ?? null,
+        lostReason: isLost ? l.lost_reason || l.lostReasonDetails || null : null,
+        leadDate: l?.created_at ? new Date(l.created_at).toISOString() : null,
+      },
+    };
+  });
+};
+
 export const getCalls = async (filters, { page, limit }) => {
   const { where, params } = buildCallFilters(filters);
   const offset = (page - 1) * limit;
@@ -287,7 +351,7 @@ export const getCalls = async (filters, { page, limit }) => {
     params,
   );
 
-  return { total, rows };
+  return { total, rows: await attachContacts(rows) };
 };
 
 export const getSummary = async (filters) => {
@@ -554,10 +618,7 @@ export const getMissedCalls = async (
     }
   }
 
-  return {
-    total,
-    counts: numCounts,
-    rows: rows.map(({ ct, ...r }) => ({
+  const shaped = rows.map(({ ct, ...r }) => ({
       ...r,
       droppedInIvr: Number(r.droppedInIvr),
       manualAttempts: Number(r.manualAttempts),
@@ -567,8 +628,9 @@ export const getMissedCalls = async (
       ourConnected: Number(r.ourConnected),
       durationSec: Number(r.durationSec),
       agentStates: states[r.uid] || [],
-    })),
-  };
+    }));
+
+  return { total, counts: numCounts, rows: await attachContacts(shaped) };
 };
 
 export const callExists = async (uid) => {
