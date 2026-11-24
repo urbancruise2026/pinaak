@@ -2,7 +2,7 @@
 
 import React from "react";
 import { formatDuration, splitDateTime } from "../ivr.utils";
-import { Empty, Pager, TH, TableShell, useIvrState } from "./shared";
+import { ContactCell, Empty, LeadCell, Pager, TH, TableShell, useIvrState } from "./shared";
 
 interface Props {
   page: number;
@@ -33,7 +33,8 @@ const CallsTable: React.FC<Props> = ({ page, onPage }) => {
           <tr>
             <TH>Date</TH>
             <TH>Time</TH>
-            <TH>Phone</TH>
+            <TH>Customer</TH>
+            <TH>Lead</TH>
             <TH>Direction</TH>
             <TH>Response</TH>
             <TH>Department</TH>
@@ -50,7 +51,8 @@ const CallsTable: React.FC<Props> = ({ page, onPage }) => {
               <tr key={c.uid} className="border-t hover:bg-gray-50">
                 <td className="whitespace-nowrap px-3 py-2">{date}</td>
                 <td className="whitespace-nowrap px-3 py-2">{time}</td>
-                <td className="whitespace-nowrap px-3 py-2 font-mono">{c.phone}</td>
+                <td className="whitespace-nowrap px-3 py-2"><ContactCell phone={c.phone} contact={c.contact} /></td>
+                <td className="px-3 py-2"><LeadCell contact={c.contact} /></td>
                 <td className="px-3 py-2 capitalize">{c.direction}</td>
                 <td className="px-3 py-2">
                   <span className={`rounded px-2 py-0.5 text-xs font-semibold capitalize ${responseCls(c.response)}`}>

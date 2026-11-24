@@ -4,7 +4,7 @@ import React from "react";
 import { changeMissedStatus } from "../ivrSlice";
 import type { AgentState, FollowupStatus, MissedRow, MissedTab } from "../ivr.types";
 import { STATUS_STYLE, formatDuration, splitDateTime } from "../ivr.utils";
-import { Card, Empty, Pager, StatusBadge, TH, TableShell, useIvrDispatch, useIvrState, useNotice } from "./shared";
+import { Card, ContactCell, Empty, LeadCell, Pager, StatusBadge, TH, TableShell, useIvrDispatch, useIvrState, useNotice } from "./shared";
 
 interface Props {
   page: number;
@@ -91,7 +91,8 @@ const Row: React.FC<{ row: MissedRow; canEdit: boolean; onChanged: () => void }>
       <td className="whitespace-nowrap px-3 py-2">
         {date} <span className="text-gray-500">{t}</span>
       </td>
-      <td className="whitespace-nowrap px-3 py-2 font-mono">{row.phone}</td>
+      <td className="whitespace-nowrap px-3 py-2"><ContactCell phone={row.phone} contact={row.contact} /></td>
+      <td className="px-3 py-2"><LeadCell contact={row.contact} /></td>
       <td className="px-3 py-2 text-gray-600">{row.via || "-"}</td>
       <td className="px-3 py-2">
         {row.droppedInIvr ? (
@@ -186,7 +187,8 @@ const MissedBoard: React.FC<Props> = ({ page, onPage, status, onStatus, canEdit,
           <thead>
             <tr>
               <TH>Call time</TH>
-              <TH>Phone</TH>
+              <TH>Customer</TH>
+              <TH>Lead</TH>
               <TH>Department</TH>
               <TH>Missed by / why</TH>
               <TH>Follow-up calls</TH>

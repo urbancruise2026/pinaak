@@ -4,7 +4,7 @@ import React from "react";
 import { useDispatch, useSelector } from "react-redux";
 import type { AppDispatch, RootState } from "@/store/store";
 import { STATUS_LABEL, STATUS_STYLE } from "../ivr.utils";
-import type { FollowupStatus } from "../ivr.types";
+import type { ContactInfo, FollowupStatus } from "../ivr.types";
 
 type Notify = (kind: "ok" | "err", text: string) => void;
 const NoticeCtx = React.createContext<Notify>(() => {});
@@ -129,3 +129,48 @@ export const TH: React.FC<React.PropsWithChildren<{ right?: boolean }>> = ({ chi
     {children}
   </th>
 );
+
+// Phone column: customer name when the number matches a customer, number on
+// hover. Unknown numbers just show the number.
+export const ContactCell: React.FC<{ phone: string; contact: ContactInfo | null }> = ({ phone, contact }) =>
+  contact?.name ? (
+    <span title={phone} className="cursor-help font-semibold text-slate-800 underline decoration-dotted underline-offset-2">
+      {contact.name}
+    </span>
+  ) : (
+    <span className="font-mono">{phone}</span>
+  );
+
+const LEAD_STYLE: Record<string, string> = {
+  NEW: "bg-slate-100 text-slate-700",
+  RFQ: "bg-blue-100 text-blue-700",
+  KYC: "bg-indigo-100 text-indigo-700",
+  HOT: "bg-orange-100 text-orange-700",
+  "VEH-N": "bg-amber-100 text-amber-800",
+  LOST: "bg-red-100 text-red-700",
+  BOOK: "bg-emerald-100 text-emerald-700",
+};
+
+// Lead column: status, remarks and (for LOST) the lost reason.
+export const LeadCell: React.FC<{ contact: ContactInfo | null }> = ({ contact }) => {
+  if (!contact) return <span className="text-xs text-slate-400">Not in customers</span>;
+  if (!contact.leadStatus) return <span className="text-xs text-slate-400">No lead</span>;
+  const status = contact.leadStatus.toUpperCase();
+  return (
+    <div className="max-w-[260px] space-y-0.5">
+      <span className={`inline-block rounded px-2 py-0.5 text-xs font-semibold ${LEAD_STYLE[status] ?? "bg-slate-100 text-slate-700"}`}>
+        {contact.leadStatus}
+      </span>
+      {contact.lostReason && (
+        <p className="truncate text-xs text-red-600" title={contact.lostReason}>
+          Lost: {contact.lostReason}
+        </p>
+      )}
+      {contact.remarks && (
+        <p className="truncate text-xs text-slate-600" title={contact.remarks}>
+          {contact.remarks}
+        </p>
+      )}
+    </div>
+  );
+};
