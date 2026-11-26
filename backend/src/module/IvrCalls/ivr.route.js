@@ -21,6 +21,7 @@ router.post("/missed/:uid/attempt", c.addMissedAttempt);
 router.get("/missed/:uid/attempts", c.getMissedAttempts);
 
 // Breaks (per MyOperator agent)
+router.post("/click-to-call", c.clickToCall);
 router.get("/breaks/me", c.getMyBreak);
 router.post("/breaks/start", c.startMyBreak);
 router.post("/breaks/end", c.endMyBreak);
@@ -43,6 +44,7 @@ router.post("/sync", requireFull, c.syncNow);
 router.get("/debug/sample", requireSuperAdmin, c.debugSample);
 router.get("/debug/codes", requireSuperAdmin, c.debugCodes);
 router.get("/debug/webhook-events", requireSuperAdmin, c.debugWebhookEvents);
+router.post("/debug/learn-agent-phones", requireSuperAdmin, c.debugLearnAgentPhones);
 router.get("/debug/myoperator-users", requireSuperAdmin, c.debugMyOperatorUsers);
 
 export default router;

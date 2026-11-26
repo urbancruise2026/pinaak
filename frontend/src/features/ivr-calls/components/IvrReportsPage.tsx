@@ -16,7 +16,7 @@ import {
   fetchSummary,
   runSync,
 } from "../ivrSlice";
-import type { IvrFilters, MissedTab } from "../ivr.types";
+import type { CallSort, IvrFilters, MissedTab } from "../ivr.types";
 import { canManageIvr, defaultFilters, ivrAccessLevel } from "../ivr.utils";
 import AgentsPanel from "./AgentsPanel";
 import BreakButton from "./BreakButton";
@@ -66,6 +66,7 @@ const Inner: React.FC = () => {
   const visibleTabs = TABS.filter((t) => (limited ? t.key === "missed" || t.key === "calls" : t.key !== "agents" || canManage));
   const [filters, setFilters] = React.useState<IvrFilters>(defaultFilters);
   const [callsPage, setCallsPage] = React.useState(1);
+  const [callSort, setCallSort] = React.useState<CallSort>({ key: "date", order: "desc" });
   const [missedPage, setMissedPage] = React.useState(1);
   const [missedStatus, setMissedStatus] = React.useState<MissedTab>("");
 
@@ -81,10 +82,10 @@ const Inner: React.FC = () => {
   const reload = React.useCallback(() => {
     if (!allowed) return;
     if (tab === "summary") dispatch(fetchSummary(filters));
-    if (tab === "calls") dispatch(fetchCalls({ filters, page: callsPage }));
+    if (tab === "calls") dispatch(fetchCalls({ filters, page: callsPage, sort: callSort }));
     if (tab === "missed") dispatch(fetchMissed({ filters, page: missedPage, status: missedStatus }));
     if (tab === "breaks") dispatch(fetchBreakReport(filters));
-  }, [allowed, tab, filters, callsPage, missedPage, missedStatus, dispatch]);
+  }, [allowed, tab, filters, callsPage, callSort, missedPage, missedStatus, dispatch]);
 
   React.useEffect(() => {
     reload();
@@ -206,7 +207,15 @@ const Inner: React.FC = () => {
           onChanged={reload}
         />
       )}
-      {tab === "calls" && <CallsTable page={callsPage} onPage={setCallsPage} />}
+      {tab === "calls" && <CallsTable
+          page={callsPage}
+          onPage={setCallsPage}
+          sort={callSort}
+          onSort={(s) => {
+            setCallsPage(1);
+            setCallSort(s);
+          }}
+        />}
       {tab === "breaks" && !limited && <BreaksPanel canManage={canManage} onChanged={reload} />}
       {tab === "agents" && canManage && <AgentsPanel />}
       </div>

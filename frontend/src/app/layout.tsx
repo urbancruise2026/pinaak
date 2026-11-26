@@ -6,6 +6,7 @@ import { ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css"; // Toastify CSS
 import { SocketProvider } from "../providers/SocketProvider";
 import GlobalWidgets from "@/components/common/GlobalWidgets";
+import IvrCallPopup from "@/features/ivr-calls/components/IvrCallPopup";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -37,6 +38,7 @@ export default function RootLayout({
           <SocketProvider>
             <GlobalWidgets />
             {children}
+            <IvrCallPopup />
           </SocketProvider>
 
           <ToastContainer
