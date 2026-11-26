@@ -22,7 +22,8 @@ import followupRouter from "../module/leadFollowups/lead_followups.route.js";
 import zonecity from "../module/RegionZoneCity/zone.route.js"
 import rateQuotationRouter from "../module/RateQuotation/RateQuotation.route.js";
 import ivrRouter from "../module/IvrCalls/ivr.route.js";
-import ivrWebhookRouter from "../module/IvrCalls/ivr.webhook.js";
+import { getIO } from "../socket/socket.js"
+import ivrWebhookRouter, { setIvrSocketGetter } from "../module/IvrCalls/ivr.webhook.js";
 
 const allRoutes = (app) => {
   app.use("/api/v1/user", userRouter);
@@ -48,6 +49,7 @@ const allRoutes = (app) => {
   app.use("/api/v1/followup", followupRouter);
   app.use("/api/v1/zones",zonecity)
   app.use("/api/v1/rate_quotation", rateQuotationRouter);
+  setIvrSocketGetter(getIO);
   app.use("/api/v1/ivr/webhook", ivrWebhookRouter);
   app.use("/api/v1/ivr", ivrRouter);
 };

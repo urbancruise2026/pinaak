@@ -1,10 +1,12 @@
 "use client";
 
 import React from "react";
+import { Phone } from "lucide-react";
 import { useDispatch, useSelector } from "react-redux";
 import type { AppDispatch, RootState } from "@/store/store";
 import { STATUS_LABEL, STATUS_STYLE } from "../ivr.utils";
 import type { ContactInfo, FollowupStatus } from "../ivr.types";
+import { clickToCall } from "../ivrApi";
 
 type Notify = (kind: "ok" | "err", text: string) => void;
 const NoticeCtx = React.createContext<Notify>(() => {});
@@ -120,22 +122,62 @@ export const TableShell: React.FC<React.PropsWithChildren> = ({ children }) => (
   <div className="max-h-[70vh] min-h-[12rem] overflow-auto lg:max-h-[calc(100vh-18rem)]">{children}</div>
 );
 
-export const TH: React.FC<React.PropsWithChildren<{ right?: boolean }>> = ({ children, right }) => (
+export const TH: React.FC<React.PropsWithChildren<{ right?: boolean; onSort?: () => void; active?: "asc" | "desc" | null }>> = ({
+  children,
+  right,
+  onSort,
+  active,
+}) => (
   <th
+    onClick={onSort}
+    aria-sort={active ? (active === "asc" ? "ascending" : "descending") : undefined}
     className={`sticky top-0 z-10 whitespace-nowrap bg-slate-100 px-3 py-2.5 text-xs font-semibold uppercase tracking-wide text-slate-600 shadow-[0_1px_0_0_#e2e8f0] ${
       right ? "text-right" : "text-left"
-    }`}
+    } ${onSort ? "cursor-pointer select-none hover:text-slate-900" : ""}`}
   >
     {children}
+    {onSort && <span className={`ml-1 ${active ? "text-blue-600" : "text-slate-300"}`}>{active === "asc" ? "▲" : active === "desc" ? "▼" : "↕"}</span>}
   </th>
 );
 
 // Phone column: customer name when the number matches a customer, number on
 // hover. Unknown numbers just show the number.
+// Click-to-call: MyOperator rings the agent first, then the customer.
+// Only rendered when the backend says click-to-call is switched on.
+export const CallButton: React.FC<{ phone: string }> = ({ phone }) => {
+  const { access } = useIvrState();
+  const toast = useNotice();
+  const [busy, setBusy] = React.useState(false);
+  if (!access?.clickToCall) return null;
+  const go = async () => {
+    if (busy || !window.confirm(`Call ${phone}? Your phone will ring first.`)) return;
+    setBusy(true);
+    try {
+      toast.success(await clickToCall(phone));
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Could not start the call");
+    } finally {
+      setTimeout(() => setBusy(false), 8000);
+    }
+  };
+  return (
+    <button
+      type="button"
+      onClick={go}
+      disabled={busy}
+      title="Call this number"
+      className="ml-2 inline-flex h-6 w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200 disabled:opacity-40"
+    >
+      <Phone className="h-3.5 w-3.5" />
+    </button>
+  );
+};
+
 export const ContactCell: React.FC<{ phone: string; contact: ContactInfo | null }> = ({ phone, contact }) =>
   contact?.name ? (
-    <span title={phone} className="cursor-help font-semibold text-slate-800 underline decoration-dotted underline-offset-2">
-      {contact.name}
+    <span className="inline-flex flex-col align-middle leading-tight">
+      <span className="font-semibold text-slate-800">{contact.name}</span>
+      <span className="font-mono text-[11px] text-slate-500">{phone}</span>
     </span>
   ) : (
     <span className="font-mono">{phone}</span>

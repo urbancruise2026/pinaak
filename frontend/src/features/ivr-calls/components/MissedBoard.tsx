@@ -4,7 +4,7 @@ import React from "react";
 import { changeMissedStatus } from "../ivrSlice";
 import type { AgentState, FollowupStatus, MissedRow, MissedTab } from "../ivr.types";
 import { STATUS_STYLE, formatDuration, splitDateTime } from "../ivr.utils";
-import { Card, ContactCell, Empty, LeadCell, Pager, StatusBadge, TH, TableShell, useIvrDispatch, useIvrState, useNotice } from "./shared";
+import { CallButton, ContactCell, Empty, LeadCell, Pager, StatusBadge, TH, TableShell, useIvrDispatch, useIvrState, useNotice } from "./shared";
 
 interface Props {
   page: number;
@@ -91,7 +91,7 @@ const Row: React.FC<{ row: MissedRow; canEdit: boolean; onChanged: () => void }>
       <td className="whitespace-nowrap px-3 py-2">
         {date} <span className="text-gray-500">{t}</span>
       </td>
-      <td className="whitespace-nowrap px-3 py-2"><ContactCell phone={row.phone} contact={row.contact} /></td>
+      <td className="whitespace-nowrap px-3 py-2"><ContactCell phone={row.phone} contact={row.contact} /><CallButton phone={row.phone} /></td>
       <td className="px-3 py-2"><LeadCell contact={row.contact} /></td>
       <td className="px-3 py-2 text-gray-600">{row.via || "-"}</td>
       <td className="px-3 py-2">
@@ -157,28 +157,53 @@ const MissedBoard: React.FC<Props> = ({ page, onPage, status, onStatus, canEdit,
 
   return (
     <div className="space-y-3">
-      <div className="grid grid-cols-2 gap-3">
-        <Card label="Pending" value={c?.pending ?? 0} hint="missed + trying" tone="red" />
-        <Card label="Completed" value={c?.connected ?? 0} hint="customer reached" tone="green" />
-      </div>
       <p className="text-xs text-gray-500">
         Status is automatic. Completed (green): a later call to or from the same number connected. Pending: nobody
         has reached the customer yet (red = no callback yet, orange = we tried, not connected).
       </p>
 
-      <div className="flex flex-wrap gap-2">
-        {TABS.map((tab) => (
-          <button
-            key={tab.key || "all"}
-            type="button"
-            onClick={() => onStatus(tab.key)}
-            className={`rounded-full border px-3 py-1 text-sm ${
-              status === tab.key ? "bg-gray-900 text-white" : "bg-white text-gray-700"
-            }`}
-          >
-            {tab.label}
-          </button>
-        ))}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex flex-wrap gap-2">
+          {TABS.map((tab) => (
+            <button
+              key={tab.key || "all"}
+              type="button"
+              onClick={() => onStatus(tab.key)}
+              className={`rounded-full border px-3 py-1 text-sm ${
+                status === tab.key ? "bg-gray-900 text-white" : "bg-white text-gray-700"
+              }`}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <div className="min-w-[96px] rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-slate-800">
+            <p className="text-[10px] font-semibold uppercase tracking-wide">Total missed</p>
+            <p className="text-xl font-extrabold leading-tight">{(c?.pending ?? 0) + (c?.connected ?? 0)}</p>
+          </div>
+          <div className="min-w-[96px] rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-red-700">
+            <p className="text-[10px] font-semibold uppercase tracking-wide">Pending</p>
+            <p className="text-xl font-extrabold leading-tight">{c?.pending ?? 0}</p>
+          </div>
+          <div className="min-w-[96px] rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-emerald-700">
+            <p className="text-[10px] font-semibold uppercase tracking-wide">Completed</p>
+            <p className="text-xl font-extrabold leading-tight">{c?.connected ?? 0}</p>
+          </div>
+          <div className="min-w-[110px] rounded-lg border border-blue-200 bg-blue-50 px-3 py-1.5 text-blue-800">
+            <p className="text-[10px] font-semibold uppercase tracking-wide">Converted (has lead)</p>
+            <p className="text-xl font-extrabold leading-tight">{c?.converted ?? 0}</p>
+            {(c?.leadByStatus ?? []).length > 0 && (
+              <div className="mt-0.5 flex flex-wrap gap-1">
+                {(c?.leadByStatus ?? []).map((l) => (
+                  <span key={l.status} className="rounded bg-white/80 px-1 text-[10px] font-semibold text-slate-700">
+                    {l.status} {l.count}
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       <div className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">

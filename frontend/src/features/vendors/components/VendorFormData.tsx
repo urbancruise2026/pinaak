@@ -44,6 +44,7 @@ import {
   VENDOR_CATEGORIES,
   type FieldConfig,
 } from "./vendorComponents/constants";
+import MultiSelectField from "./vendorComponents/MultiSelectField";
 import { useVendorForm } from "./vendorComponents/useVendorForm";
 import type { FormMode, SectionTheme } from "./vendorComponents/types";
 
@@ -353,7 +354,7 @@ const VendorForm: React.FC<VendorFormProps> = ({
               onChange={() => {}}
             />
 
-            <SelectField
+           <MultiSelectField
               label="Vendor Category"
               Icon={Layers}
               theme={T.vendor}
@@ -361,7 +362,7 @@ const VendorForm: React.FC<VendorFormProps> = ({
               name="vendorCategory"
               value={formData.vendorCategory ?? ""}
               onChange={f.handleChange}
-              placeholder="Select category"
+              placeholder="Select categories"
               options={VENDOR_CATEGORIES}
             />
           </Section>

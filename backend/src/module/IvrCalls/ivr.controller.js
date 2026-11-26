@@ -14,8 +14,11 @@ import {
 import { isValidDate, nowIST, todayIST, toInt } from "./ivr.utils.js";
 import { accessLevel, canManage } from "./ivr.access.js";
 import { listWebhookEvents } from "./ivr.webhook.js";
+import { learnAgentPhonesFromStoredEvents } from "./ivr.model.js";
 import {
   beginBreak,
+  clickToCallEnabled,
+  startClickToCall,
   calibrateCodes,
   fetchLogsPage,
   finishBreak,
@@ -77,7 +80,9 @@ const readPaging = (q) => ({
 export const getCalls = asyncHandler(async (req, res) => {
   const filters = readFilters(req.query);
   const paging = readPaging(req.query);
-  const { total, rows } = await model.getCalls(filters, paging);
+  const sort = String(req.query.sort ?? "");
+  const order = String(req.query.order ?? "desc");
+  const { total, rows, stats } = await model.getCalls(filters, { ...paging, sort, order });
 
   res.json(
     new ApiResponse(
@@ -85,6 +90,7 @@ export const getCalls = asyncHandler(async (req, res) => {
       {
         items: rows,
         total,
+        stats,
         page: paging.page,
         limit: paging.limit,
         workingHours: { start: WORK_START, end: WORK_END, sundayStart: SUNDAY_START, sundayEnd: SUNDAY_END },
@@ -286,7 +292,7 @@ export const testReceiveCalls = asyncHandler(async (req, res) => {
 /* ------------------- access + admin mapping ----------------------- */
 
 export const getAccess = asyncHandler(async (req, res) => {
-  res.json(new ApiResponse(200, { staffId: req.user.id, canManage: canManage(req.user), level: accessLevel(req.user) }, "Access"));
+  res.json(new ApiResponse(200, { staffId: req.user.id, canManage: canManage(req.user), level: accessLevel(req.user), clickToCall: clickToCallEnabled() }, "Access"));
 });
 
 export const getAccessMap = asyncHandler(async (req, res) => {
@@ -318,4 +324,19 @@ export const getDepartments = asyncHandler(async (req, res) => {
 // Super admin: last webhook payloads exactly as MyOperator sent them.
 export const debugWebhookEvents = asyncHandler(async (req, res) => {
   res.json(new ApiResponse(200, await listWebhookEvents(req.query.limit), "Webhook events"));
+});
+
+// Super admin: read agent phones from stored call.summary events.
+export const debugLearnAgentPhones = asyncHandler(async (req, res) => {
+  res.json(new ApiResponse(200, await learnAgentPhonesFromStoredEvents(), "Agent phones learned"));
+});
+
+export const clickToCall = asyncHandler(async (req, res) => {
+  const result = await startClickToCall({
+    staffId: req.user.id,
+    agentId: req.body?.agentId,
+    isManager: canManage(req.user),
+    phone: req.body?.phone,
+  });
+  res.json(new ApiResponse(200, result, `Calling ${result.agent} first, then the customer`));
 });

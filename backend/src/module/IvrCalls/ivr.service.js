@@ -544,3 +544,99 @@ export const breakWatchdog = async () => {
     await restoreAgent(b.id, b.agentId, b.staffId, "restore_failed");
   }
 };
+
+/* ------------------------------------------------------------------ */
+/* Click-to-call (MyOperator OBD API, peer-to-peer campaign)           */
+/* ------------------------------------------------------------------ */
+// .env:
+//   IVR_CLICK_TO_CALL=true
+//   MYOPERATOR_OBD_API_KEY=...      (sent as x-api-key header)
+//   MYOPERATOR_COMPANY_ID=...       (body: company_id)
+//   MYOPERATOR_OBD_SECRET=...       (body: secret_token)
+//   MYOPERATOR_OBD_IVR_ID=...       (body: public_ivr_id = Peer-to-Peer campaign)
+//   MYOPERATOR_OBD_TYPE=2           (body: type; value from MyOperator's sample)
+//   MYOPERATOR_OBD_EXTRA={}         (optional JSON merged into the body, e.g. {"region":"MH"})
+// MyOperator rings the agent first, then connects the customer.
+
+export const clickToCallEnabled = () => String(process.env.IVR_CLICK_TO_CALL || "").toLowerCase() === "true";
+
+// 10 digits -> +91..., "+" numbers kept (E.164, 8-15 digits). Anything else is rejected.
+export const toE164 = (value) => {
+  const raw = String(value ?? "").trim();
+  const digits = raw.replace(/\D/g, "");
+  if (raw.startsWith("+")) return digits.length >= 8 && digits.length <= 15 ? `+${digits}` : null;
+  if (digits.length === 10) return `+91${digits}`;
+  if (digits.length === 12 && digits.startsWith("91")) return `+${digits}`;
+  if (digits.length === 11 && digits.startsWith("0")) return `+91${digits.slice(1)}`;
+  return null;
+};
+
+const lastClick = new Map(); // staffId -> timestamp, one call per 8 seconds per login
+
+export const startClickToCall = async ({ staffId, agentId, isManager, phone }) => {
+  if (!clickToCallEnabled()) throw new ApiError(503, "Click-to-call is switched off on the server (IVR_CLICK_TO_CALL)");
+
+  const cfg = {
+    apiKey: process.env.MYOPERATOR_OBD_API_KEY,
+    companyId: process.env.MYOPERATOR_COMPANY_ID,
+    secret: process.env.MYOPERATOR_OBD_SECRET,
+    ivrId: process.env.MYOPERATOR_OBD_IVR_ID,
+  };
+  const missing = Object.entries({
+    MYOPERATOR_OBD_API_KEY: cfg.apiKey,
+    MYOPERATOR_COMPANY_ID: cfg.companyId,
+    MYOPERATOR_OBD_SECRET: cfg.secret,
+    MYOPERATOR_OBD_IVR_ID: cfg.ivrId,
+  })
+    .filter(([, v]) => !v)
+    .map(([k]) => k);
+  if (missing.length) throw new ApiError(503, `Click-to-call not configured: ${missing.join(", ")}`);
+
+  const number = toE164(phone);
+  if (!number) throw new ApiError(400, "Invalid phone number");
+
+  const agent = await resolveAgent({ staffId, agentId, isManager });
+  if (!agent.uuid) throw new ApiError(400, `${agent.ivrName} is not linked to MyOperator yet (Agents tab -> sync users)`);
+
+  const now = Date.now();
+  if (now - (lastClick.get(staffId) ?? 0) < 8000) throw new ApiError(429, "Please wait a few seconds before the next call");
+  lastClick.set(staffId, now);
+
+  const referenceId = `pnk_${agent.id}_${now}`; // must be unique, duplicates are rejected
+  let extra = {};
+  try {
+    extra = process.env.MYOPERATOR_OBD_EXTRA ? JSON.parse(process.env.MYOPERATOR_OBD_EXTRA) : {};
+  } catch {
+    throw new ApiError(500, "MYOPERATOR_OBD_EXTRA is not valid JSON");
+  }
+
+  const body = {
+    company_id: cfg.companyId,
+    secret_token: cfg.secret,
+    type: process.env.MYOPERATOR_OBD_TYPE || "2",
+    number,
+    public_ivr_id: cfg.ivrId,
+    reference_id: referenceId,
+    user_id: agent.uuid, // which agent to ring first (peer-to-peer "user dial")
+    ...extra,
+  };
+
+  let text = "";
+  let ok = false;
+  try {
+    const res = await fetch(process.env.MYOPERATOR_OBD_URL || "https://obd-api.myoperator.co/obd-api-v1", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", Accept: "application/json", "x-api-key": cfg.apiKey },
+      body: JSON.stringify(body),
+      signal: AbortSignal.timeout(20000),
+    });
+    text = await res.text();
+    ok = res.ok;
+  } catch (e) {
+    text = e.message;
+  }
+  await model.logClickCall({ staffId, agentId: agent.id, phone: number, referenceId, ok, response: text });
+
+  if (!ok) throw new ApiError(502, `MyOperator did not start the call: ${text.slice(0, 300) || "no response"}`);
+  return { agent: agent.ivrName, number, referenceId, response: text.slice(0, 300) };
+};

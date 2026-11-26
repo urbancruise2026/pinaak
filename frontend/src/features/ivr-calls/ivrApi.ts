@@ -3,6 +3,7 @@ import { getErrorMessage } from "@/lib/getErrorMessage";
 import type { ApiResponse } from "@/types/api";
 import type {
   AccessMapAgent,
+  CallSort,
   AgentsResult,
   AttemptRow,
   BreakActionResult,
@@ -42,10 +43,11 @@ export const getCalls = async (
   f: IvrFilters,
   page: number,
   limit = 25,
+  sort?: CallSort,
 ): Promise<CallsResult> => {
   try {
     const { data } = await axiosInstance.get<ApiResponse<CallsResult>>("/ivr/calls", {
-      params: clean({ ...filterParams(f), page, limit }),
+      params: clean({ ...filterParams(f), page, limit, sort: sort?.key, order: sort?.order }),
     });
     return data.data;
   } catch (error: unknown) {
@@ -118,6 +120,15 @@ export const getMissedAttempts = async (uid: string): Promise<AttemptRow[]> => {
     return data.data;
   } catch (error: unknown) {
     throw new Error(getErrorMessage(error, "Failed to fetch attempts"));
+  }
+};
+
+export const clickToCall = async (phone: string): Promise<string> => {
+  try {
+    const { data } = await axiosInstance.post<ApiResponse<unknown>>("/ivr/click-to-call", { phone });
+    return (data as { message?: string }).message || "Calling - pick up your phone";
+  } catch (error: unknown) {
+    throw new Error(getErrorMessage(error, "Could not start the call"));
   }
 };
 

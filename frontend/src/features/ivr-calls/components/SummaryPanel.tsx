@@ -78,42 +78,74 @@ const SquareTile: React.FC<{
   );
 };
 
-// Unanswered incoming calls per hour of the day (real data, hover for counts).
-const HourBars: React.FC<{ data: number[] }> = ({ data }) => {
-  const max = Math.max(1, ...data);
-  const peak = data.indexOf(Math.max(...data));
-  const any = data.some((v) => v > 0);
+// Calls per hour of the day (real data); the count is always shown on top of each bar.
+// Toggle: all calls (with the not-connected part marked) or only not-connected.
+const HourChart: React.FC<{
+  title: string;
+  series: { total: number[]; missed: number[] };
+  allLabel: string;
+  missedLabel: string;
+  tone: "blue" | "purple";
+}> = ({ title, series, allLabel, missedLabel, tone }) => {
+  const [mode, setMode] = React.useState<"all" | "missed">("all");
+  const total = series?.total ?? Array.from({ length: 24 }, () => 0);
+  const missed = series?.missed ?? Array.from({ length: 24 }, () => 0);
+  const values = mode === "all" ? total : missed;
+  const max = Math.max(1, ...values);
+  const peak = values.indexOf(Math.max(...values));
+  const any = values.some((v) => v > 0);
   const hh = (h: number) => String(h).padStart(2, "0");
+  const base = tone === "blue" ? "bg-blue-300 group-hover:bg-blue-400" : "bg-violet-200 group-hover:bg-violet-300";
+  const miss = tone === "blue" ? "bg-red-400" : "bg-violet-500";
+  const btn = (on: boolean) =>
+    `rounded-md px-2 py-0.5 text-[11px] font-semibold ${on ? "bg-white text-slate-900 shadow-sm" : "text-slate-500 hover:text-slate-800"}`;
   return (
-    <div className="min-w-[180px] flex-1">
-      <div className="flex items-center justify-between text-[11px] text-red-700/80">
-        <span className="font-semibold">Unanswered by hour</span>
-        {any && (
-          <span>
-            Peak {hh(peak)}:00 ({data[peak]})
+    <div className="flex h-full min-h-[170px] min-w-[240px] flex-1 flex-col rounded-xl border border-slate-200 bg-slate-50/60 p-2.5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="text-[11px] font-semibold text-slate-600">
+          {title}
+          {any && <span className="ml-1.5 font-normal text-slate-500">Peak {hh(peak)}:00 ({values[peak]})</span>}
+        </span>
+        <span className="inline-flex rounded-lg bg-slate-200/70 p-0.5">
+          <button type="button" onClick={() => setMode("all")} className={btn(mode === "all")}>
+            {allLabel}
+          </button>
+          <button type="button" onClick={() => setMode("missed")} className={btn(mode === "missed")}>
+            {missedLabel}
+          </button>
+        </span>
+      </div>
+
+      <div className="mt-4 flex min-h-[90px] flex-1 items-end gap-[3px] pt-3">
+        {values.map((v, h) => {
+          const height = v > 0 ? Math.max(6, (v / max) * 100) : 0;
+          const m = mode === "all" ? Math.min(missed[h] ?? 0, v) : 0;
+          return (
+            <div key={h} className="group relative flex h-full flex-1 items-end" title={`${hh(h)}:00 - ${hh(h)}:59`}>
+              <div
+                className={`relative w-full overflow-hidden rounded-t-sm ${mode === "all" ? base : v > 0 ? miss : "bg-slate-200"}`}
+                style={{ height: v > 0 ? `${height}%` : "2px" }}
+              >
+                {m > 0 && <div className={`absolute bottom-0 w-full ${miss}`} style={{ height: `${(m / v) * 100}%` }} />}
+              </div>
+              {v > 0 && (
+                <span
+                  className="pointer-events-none absolute left-1/2 -translate-x-1/2 text-[9px] font-bold leading-none text-slate-700"
+                  style={{ bottom: `calc(${height}% + 2px)` }}
+                >
+                  {v}
+                </span>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="mt-1 flex gap-[3px] text-[8px] leading-none text-slate-500 sm:text-[9px]">
+        {values.map((_, h) => (
+          <span key={h} className="flex-1 text-center">
+            {h}h
           </span>
-        )}
-      </div>
-      <div className="mt-1 flex h-14 items-end gap-[2px]">
-        {data.map((v, h) => (
-          <div
-            key={h}
-            title={`${hh(h)}:00 - ${hh(h)}:59  |  ${v} unanswered`}
-            className="flex h-full flex-1 items-end"
-          >
-            <div
-              className={`w-full rounded-t-sm ${v > 0 ? "bg-red-400 hover:bg-red-500" : "bg-red-200/60"}`}
-              style={{ height: v > 0 ? `${Math.max(8, (v / max) * 100)}%` : "3px" }}
-            />
-          </div>
         ))}
-      </div>
-      <div className="mt-0.5 flex justify-between text-[10px] text-slate-400">
-        <span>0h</span>
-        <span>6h</span>
-        <span>12h</span>
-        <span>18h</span>
-        <span>23h</span>
       </div>
     </div>
   );
@@ -148,7 +180,7 @@ const SummaryPanel: React.FC = () => {
     <div className="space-y-4">
       <div className="grid gap-4 lg:grid-cols-[minmax(220px,250px)_minmax(0,1fr)]">
         {/* ---------------- TOTAL ---------------- */}
-        <div className="relative flex flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-[#0b2a5b] via-[#0a2149] to-[#07173a] p-3.5 lg:self-start text-white shadow-xl">
+        <div className="relative flex flex-col overflow-hidden rounded-2xl bg-gradient-to-br from-[#0b2a5b] via-[#0a2149] to-[#07173a] p-3.5 text-white shadow-xl">
           <div className="flex items-center gap-4">
             <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-gradient-to-br from-blue-400 to-blue-700 shadow-lg ring-4 ring-white/10">
               <Phone className="h-5 w-5" />
@@ -165,10 +197,10 @@ const SummaryPanel: React.FC = () => {
 
           <div className="my-3 border-t border-white/10" />
 
-          <div className="space-y-2">
-            <div className="relative overflow-hidden rounded-xl bg-emerald-500/10 p-2.5 ring-1 ring-emerald-400/30">
+          <div className="flex flex-1 flex-col gap-2">
+            <div className="relative flex-1 overflow-hidden rounded-xl bg-emerald-500/10 p-2.5 ring-1 ring-emerald-400/30">
               <Wave color="#34d399" />
-              <div className="relative flex items-center gap-3">
+              <div className="relative flex h-full items-center gap-3">
                 <Clock className="h-5 w-5 text-emerald-400" />
                 <div>
                   <p className="text-xs font-bold uppercase leading-tight text-emerald-300">
@@ -183,9 +215,9 @@ const SummaryPanel: React.FC = () => {
               </div>
             </div>
 
-            <div className="relative overflow-hidden rounded-xl bg-amber-500/10 p-2.5 ring-1 ring-amber-400/30">
+            <div className="relative flex-1 overflow-hidden rounded-xl bg-amber-500/10 p-2.5 ring-1 ring-amber-400/30">
               <Wave color="#fbbf24" />
-              <div className="relative flex items-center gap-3">
+              <div className="relative flex h-full items-center gap-3">
                 <Ban className="h-5 w-5 text-amber-400" />
                 <div>
                   <p className="text-xs font-bold uppercase text-amber-300">Non-working hours</p>
@@ -199,7 +231,7 @@ const SummaryPanel: React.FC = () => {
         </div>
 
         {/* ---------------- INCOMING (top) + OUTGOING (below) ---------------- */}
-        <div className="grid gap-4">
+        <div className="grid gap-4 [grid-template-rows:auto_auto]">
           <section className="rounded-2xl border border-slate-200 bg-white p-3.5 shadow-sm">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2.5">
@@ -211,15 +243,23 @@ const SummaryPanel: React.FC = () => {
               <Pill text={`${pct(t.incomingConnected, t.incoming)} answered`} cls="bg-blue-50 text-blue-700" />
             </div>
 
-            <div className="mt-3 flex flex-wrap items-start gap-3">
-              <div className="flex shrink-0 flex-col justify-center self-center pr-1">
-                <p className="bg-gradient-to-b from-blue-500 to-blue-800 bg-clip-text text-4xl font-black leading-none text-transparent sm:text-5xl">
-                  {n(t.incoming)}
-                </p>
-                <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-600">
-                  <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
-                  {pct(t.incomingConnected, t.incoming)} of incoming
-                </p>
+            <div className="mt-3 flex flex-wrap items-stretch gap-3">
+              {/* number + what happened to the unanswered calls */}
+              <div className="flex shrink-0 flex-col justify-center gap-2 pr-1">
+                <div>
+                  <p className="bg-gradient-to-b from-blue-500 to-blue-800 bg-clip-text text-4xl font-black leading-none text-transparent sm:text-5xl">
+                    {n(t.incoming)}
+                  </p>
+                  <p className="mt-1 flex items-center gap-1.5 text-xs text-slate-600">
+                    <TrendingUp className="h-3.5 w-3.5 text-emerald-600" />
+                    {pct(t.incomingConnected, t.incoming)} of incoming
+                  </p>
+                </div>
+                <div className="flex flex-col items-start gap-1.5">
+                  <Chip label="Missed by agent" value={t.incomingMissedByAgent} cls="border-red-200 bg-white text-red-700" />
+                  <Chip label="Dropped in IVR" value={t.droppedInIvr} cls="border-blue-200 bg-white text-blue-700" />
+                  <Chip label="Voicemail" value={t.voicemail} cls="border-violet-200 bg-white text-violet-700" />
+                </div>
               </div>
 
               <SquareTile
@@ -237,8 +277,8 @@ const SummaryPanel: React.FC = () => {
                 icon={<PhoneMissed className="h-4 w-4" />}
               />
 
-              {/* what happened to the unanswered calls + when they came in */}
-              <div className="min-w-[220px] flex-1 self-stretch rounded-xl border border-red-200 bg-gradient-to-br from-red-50 to-white p-3">
+              {/* connected back / pending + hourly graph filling the rest of the box */}
+              <div className="flex min-w-[260px] flex-1 flex-col gap-2">
                 <div className="flex flex-wrap items-center gap-2">
                   <div className="rounded-lg bg-emerald-100/80 px-2.5 py-1.5">
                     <p className="text-[11px] font-semibold text-emerald-700">Connected back</p>
@@ -249,45 +289,45 @@ const SummaryPanel: React.FC = () => {
                     <p className="text-lg font-extrabold leading-none text-amber-800">{n(t.unansweredPending)}</p>
                   </div>
                 </div>
-                <div className="mt-2.5">
-                  <HourBars data={summary.unansweredByHour ?? []} />
+                <div className="min-h-[170px] flex-1">
+                  <HourChart
+                    title="Incoming by hour"
+                    series={summary.hourly?.incoming ?? { total: [], missed: [] }}
+                    allLabel="Incoming + missed"
+                    missedLabel="Missed"
+                    tone="blue"
+                  />
                 </div>
-
-                <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-red-200/70 pt-2.5">
-                  <Chip label="Missed by agent" value={t.incomingMissedByAgent} cls="border-red-200 bg-white text-red-700" />
-                  <Chip label="Dropped in IVR" value={t.droppedInIvr} cls="border-blue-200 bg-white text-blue-700" />
-                  <Chip label="Voicemail" value={t.voicemail} cls="border-violet-200 bg-white text-violet-700" />
-                </div>
-
-                {/* {(summary.unansweredByDepartment ?? []).length > 0 && (
-                  <div className="mt-3 border-t border-red-200/70 pt-2.5">
-                    <p className="mb-1.5 text-[11px] font-semibold text-slate-600">Unanswered by department</p>
-                    <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
-                      {summary.unansweredByDepartment.map((d) => (
-                        <div
-                          key={d.department}
-                          className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg bg-white/80 px-2.5 py-1.5 text-xs"
-                        >
-                          <span className="min-w-0 truncate font-semibold text-slate-800">{d.department}</span>
-                          <span className="flex flex-wrap items-center gap-1.5">
-                            <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">
-                              Dropped in IVR <b>{n(d.droppedInIvr)}</b>
-                            </span>
-                            <span className="rounded bg-red-50 px-1.5 py-0.5 text-red-700">
-                              Missed by agent <b>{n(d.missedByAgent)}</b>
-                            </span>
-                            <span className="rounded bg-violet-50 px-1.5 py-0.5 text-violet-700">
-                              Voicemail <b>{n(d.voicemail)}</b>
-                            </span>
-                            <span className="rounded bg-slate-100 px-1.5 py-0.5 font-bold text-slate-800">{n(d.total)}</span>
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )} */}
               </div>
             </div>
+
+            {(summary.unansweredByDepartment ?? []).length > 0 && (
+              <div className="mt-3 border-t border-slate-200 pt-2.5">
+                <p className="mb-1.5 text-[11px] font-semibold text-slate-600">Unanswered by department</p>
+                <div className="max-h-44 space-y-1 overflow-y-auto pr-1">
+                  {summary.unansweredByDepartment.map((d) => (
+                    <div
+                      key={d.department}
+                      className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-lg bg-slate-50 px-2.5 py-1.5 text-xs"
+                    >
+                      <span className="min-w-0 truncate font-semibold text-slate-800">{d.department}</span>
+                      <span className="flex flex-wrap items-center gap-1.5">
+                        <span className="rounded bg-blue-50 px-1.5 py-0.5 text-blue-700">
+                          Dropped in IVR <b>{n(d.droppedInIvr)}</b>
+                        </span>
+                        <span className="rounded bg-red-50 px-1.5 py-0.5 text-red-700">
+                          Missed by agent <b>{n(d.missedByAgent)}</b>
+                        </span>
+                        <span className="rounded bg-violet-50 px-1.5 py-0.5 text-violet-700">
+                          Voicemail <b>{n(d.voicemail)}</b>
+                        </span>
+                        <span className="rounded bg-slate-100 px-1.5 py-0.5 font-bold text-slate-800">{n(d.total)}</span>
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </section>
 
           <section className="rounded-2xl border border-slate-200 bg-white p-3">
@@ -301,12 +341,25 @@ const SummaryPanel: React.FC = () => {
               <Pill text={`${pct(t.outgoingConnected, t.outgoing)} connected`} cls="bg-violet-50 text-violet-700" />
             </div>
 
-            <div className="mt-2.5 flex flex-wrap items-center gap-3">
-              <p className="shrink-0 bg-gradient-to-b from-violet-500 to-violet-800 bg-clip-text pr-1 text-4xl font-black leading-none text-transparent">
-                {n(t.outgoing)}
-              </p>
-              <Tile label="Connected" value={t.outgoingConnected} tone="green" icon={<CheckCircle2 className="h-4 w-4" />} className="flex-1" />
-              <Tile label="Not Connected" value={t.outgoingNotConnected} tone="red" icon={<XCircle className="h-4 w-4" />} className="flex-1" />
+            <div className="mt-2.5 flex flex-wrap items-stretch gap-3">
+              <div className="flex shrink-0 flex-col justify-center gap-2 pr-1">
+                <p className="bg-gradient-to-b from-violet-500 to-violet-800 bg-clip-text text-4xl font-black leading-none text-transparent">
+                  {n(t.outgoing)}
+                </p>
+              </div>
+              <div className="flex w-44 shrink-0 flex-col gap-2">
+                <Tile label="Connected" value={t.outgoingConnected} tone="green" icon={<CheckCircle2 className="h-4 w-4" />} className="flex-1" />
+                <Tile label="Not Connected" value={t.outgoingNotConnected} tone="red" icon={<XCircle className="h-4 w-4" />} className="flex-1" />
+              </div>
+              <div className="min-h-[170px] min-w-[260px] flex-1">
+                <HourChart
+                  title="Outgoing by hour"
+                  series={summary.hourly?.outgoing ?? { total: [], missed: [] }}
+                  allLabel="Outgoing + not connected"
+                  missedLabel="Not connected"
+                  tone="purple"
+                />
+              </div>
             </div>
           </section>
         </div>

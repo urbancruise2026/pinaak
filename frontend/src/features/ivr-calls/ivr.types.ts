@@ -50,7 +50,22 @@ export interface CallRow {
   isWorkingHours: number;
 }
 
+export type CallSortKey = "date" | "direction" | "response" | "department" | "receivedBy" | "missedBy" | "lead";
+export interface CallSort {
+  key: CallSortKey;
+  order: "asc" | "desc";
+}
+
+export interface CallStats {
+  total: number;
+  pending: number; // missed + not connected
+  connected: number;
+  withLead: number;
+  leadByStatus: { status: string; count: number }[];
+}
+
 export interface CallsResult extends Paged<CallRow> {
+  stats?: CallStats;
   workingHours: { start: string; end: string; sundayStart: string; sundayEnd: string };
 }
 
@@ -80,9 +95,15 @@ export interface AgentSummary {
   talkSec: number;
 }
 
+export interface HourSeries {
+  total: number[]; // 24 values
+  missed: number[]; // not connected
+}
+
 export interface SummaryResult {
   totals: SummaryTotals;
   unansweredByHour: number[]; // 24 values, hour of day (IST)
+  hourly: { incoming: HourSeries; outgoing: HourSeries };
   unansweredByDepartment: {
     department: string;
     total: number;
@@ -134,6 +155,8 @@ export interface MissedCounts {
   trying: number;
   connected: number;
   pending: number; // missed + trying
+  converted?: number; // missed calls whose number has a lead
+  leadByStatus?: { status: string; count: number }[];
 }
 
 export interface MissedResult extends Paged<MissedRow> {
@@ -200,6 +223,7 @@ export interface IvrAccess {
   staffId: number;
   canManage: boolean;
   level: "full" | "limited" | "none";
+  clickToCall?: boolean;
 }
 
 export interface StaffHit {

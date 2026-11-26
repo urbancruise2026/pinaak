@@ -1,6 +1,6 @@
 import { hrmsPool, pool } from "../../config/mySqlDB.js";
 import { WORK_START, WORK_END, SUNDAY_START, SUNDAY_END } from "./ivr.constants.js";
-import { normalizePhone } from "./ivr.utils.js";
+import { normalizePhone, nowIST } from "./ivr.utils.js";
 
 // All DATETIME columns are IST wall-clock. Never use NOW() for them (the DB
 // session is forced to UTC) - pass IST strings from ivr.utils.js instead.
@@ -136,6 +136,8 @@ export const upsertCalls = async (calls) => {
         missed_by, received_by, transferred_to, duration_sec, recording_file, raw_json)
      VALUES ?
      ON DUPLICATE KEY UPDATE
+       phone = VALUES(phone),
+       call_time = VALUES(call_time),
        direction = VALUES(direction),
        source = VALUES(source),
        call_type = VALUES(call_type),
@@ -266,7 +268,7 @@ const SQL_DIGITS = (col) => `RIGHT(REGEXP_REPLACE(IFNULL(${col}, ''), '[^0-9]', 
 // digits) and attach the customer's name plus the latest lead's status,
 // remarks and (when LOST) lost reason. Same database as the IVR tables.
 // Adds `contact` = null | { customerId, name, leadId, leadStatus, remarks, lostReason, leadDate }.
-const attachContacts = async (rows) => {
+export const attachContacts = async (rows) => {
   const keys = [...new Set(rows.map((r) => last10(r.phone)).filter((k) => k.length === 10))];
   if (keys.length === 0) return rows.map((r) => ({ ...r, contact: null }));
 
@@ -321,14 +323,65 @@ const attachContacts = async (rows) => {
   });
 };
 
-export const getCalls = async (filters, { page, limit }) => {
+// phone (last 10 digits) -> status of the customer's latest lead, one row per phone.
+const LEAD_BY_PHONE = `(
+  SELECT k.p, SUBSTRING_INDEX(GROUP_CONCAT(l.status ORDER BY l.id DESC SEPARATOR ','), ',', 1) AS status
+    FROM (
+      SELECT id, ${SQL_DIGITS("customerPhone")} AS p FROM customers
+      UNION ALL
+      SELECT id, ${SQL_DIGITS("alternatePhone")} AS p FROM customers
+    ) k
+    JOIN leads l ON l.customer_id = k.id
+   WHERE k.p <> ''
+   GROUP BY k.p
+) lm ON lm.p COLLATE utf8mb4_unicode_ci = RIGHT(c.phone, 10) COLLATE utf8mb4_unicode_ci`;
+
+const CALL_SORT = {
+  date: "c.call_time",
+  direction: "c.direction",
+  response: "c.response",
+  department: "c.via",
+  receivedBy: "c.received_by",
+  missedBy: "c.missed_by",
+  lead: "lm.status",
+};
+
+export const getCalls = async (filters, { page, limit, sort, order }) => {
   const { where, params } = buildCallFilters(filters);
   const offset = (page - 1) * limit;
+  const w = where.join(" AND ");
 
-  const [[{ total }]] = await pool.query(
-    `SELECT COUNT(*) AS total FROM ivr_call_logs c WHERE ${where.join(" AND ")}`,
+  const col = CALL_SORT[sort] ?? CALL_SORT.date;
+  const dir = String(order).toLowerCase() === "asc" ? "ASC" : "DESC";
+  // empty values always last, newest first inside equal values
+  const orderBy = col === "c.call_time" ? `c.call_time ${dir}` : `${col} IS NULL, ${col} = '', ${col} ${dir}, c.call_time DESC`;
+
+  const [[{ total }]] = await pool.query(`SELECT COUNT(*) AS total FROM ivr_call_logs c WHERE ${w}`, params);
+
+  // boxes above the table: all / pending / connected / with a lead (whole filtered set)
+  const [statRows] = await pool.query(
+    `SELECT lm.status AS leadStatus,
+            COALESCE(SUM(c.response = 'connected'), 0) AS connected,
+            COALESCE(SUM(c.response <> 'connected'), 0) AS pending
+       FROM ivr_call_logs c
+       LEFT JOIN ${LEAD_BY_PHONE}
+      WHERE ${w}
+      GROUP BY lm.status`,
     params,
   );
+  const stats = { total: 0, pending: 0, connected: 0, withLead: 0, leadByStatus: [] };
+  for (const r of statRows) {
+    const conn = Number(r.connected);
+    const pend = Number(r.pending);
+    stats.connected += conn;
+    stats.pending += pend;
+    stats.total += conn + pend;
+    if (r.leadStatus) {
+      stats.withLead += conn + pend;
+      stats.leadByStatus.push({ status: String(r.leadStatus).toUpperCase(), count: conn + pend });
+    }
+  }
+  stats.leadByStatus.sort((x, y) => y.count - x.count);
 
   const [rows] = await pool.query(
     `SELECT
@@ -345,13 +398,14 @@ export const getCalls = async (filters, { page, limit }) => {
        c.recording_file AS recordingFile,
        ${workingSql("c.call_time")} AS isWorkingHours
      FROM ivr_call_logs c
-     WHERE ${where.join(" AND ")}
-     ORDER BY c.call_time DESC
+     ${col === "lm.status" ? `LEFT JOIN ${LEAD_BY_PHONE}` : ""}
+     WHERE ${w}
+     ORDER BY ${orderBy}
      LIMIT ${Number(limit)} OFFSET ${Number(offset)}`,
     params,
   );
 
-  return { total, rows: await attachContacts(rows) };
+  return { total, stats, rows: await attachContacts(rows) };
 };
 
 export const getSummary = async (filters) => {
@@ -437,12 +491,14 @@ export const getSummary = async (filters) => {
     params,
   );
 
-  // Unanswered incoming calls per hour of day (0-23) for the chart.
+  // Calls per hour of day (0-23) and direction for the charts:
+  // total and not-connected (= missed / voicemail / outgoing not connected).
   const [hourRows] = await pool.query(
-    `SELECT HOUR(c.call_time) AS h, COUNT(*) AS n
+    `SELECT HOUR(c.call_time) AS h, c.direction AS direction, COUNT(*) AS total,
+            COALESCE(SUM(c.response <> 'connected'), 0) AS notConnected
        FROM ivr_call_logs c
-      WHERE ${w} AND c.direction = 'incoming' AND c.response <> 'connected'
-      GROUP BY HOUR(c.call_time)`,
+      WHERE ${w} AND c.direction IN ('incoming', 'outgoing')
+      GROUP BY HOUR(c.call_time), c.direction`,
     params,
   );
   // Unanswered incoming calls per department (IVR route): dropped in IVR,
@@ -461,8 +517,15 @@ export const getSummary = async (filters) => {
     params,
   );
 
-  const unansweredByHour = Array.from({ length: 24 }, () => 0);
-  for (const r of hourRows) unansweredByHour[Number(r.h)] = Number(r.n);
+  const zero = () => Array.from({ length: 24 }, () => 0);
+  const hourly = { incoming: { total: zero(), missed: zero() }, outgoing: { total: zero(), missed: zero() } };
+  for (const r of hourRows) {
+    const d = hourly[r.direction];
+    if (!d) continue;
+    d.total[Number(r.h)] = Number(r.total);
+    d.missed[Number(r.h)] = Number(r.notConnected);
+  }
+  const unansweredByHour = hourly.incoming.missed;
 
   const t = numberify(totals);
   return {
@@ -472,6 +535,7 @@ export const getSummary = async (filters) => {
       unansweredPending: Number(fu.pending),
     },
     unansweredByHour,
+    hourly,
     unassigned: numberify(unassigned),
     unansweredByDepartment: deptRows.map(({ department, ...rest }) => ({ department, ...numberify(rest) })),
     agents: agents.map(({ agentName, ...rest }) => ({ agentName, ...numberify(rest) })),
@@ -544,7 +608,22 @@ export const getMissedCalls = async (
      FROM eff`,
     params,
   );
+  // converted = missed calls whose number belongs to a customer who has a lead
+  const [leadRows] = await pool.query(
+    `${cte}
+     SELECT lm.status AS leadStatus, COUNT(*) AS n
+       FROM eff c
+       JOIN ${LEAD_BY_PHONE}
+      GROUP BY lm.status`,
+    params,
+  );
+  const leadByStatus = leadRows
+    .map((r) => ({ status: String(r.leadStatus ?? "").toUpperCase(), count: Number(r.n) }))
+    .filter((r) => r.status)
+    .sort((a, b) => b.count - a.count);
   const numCounts = numberify(counts);
+  numCounts.converted = leadByStatus.reduce((a, r) => a + r.count, 0);
+  numCounts.leadByStatus = leadByStatus;
   // "pending" = missed + trying, "connected" = completed
   const pendingCount = numCounts.missed + numCounts.trying;
   numCounts.pending = pendingCount;
@@ -955,4 +1034,121 @@ export const listDepartments = async () => {
     `SELECT DISTINCT via FROM ivr_call_logs WHERE via IS NOT NULL AND via <> '' ORDER BY via`,
   );
   return rows.map((r) => r.via);
+};
+
+/* ------------------- ring pop-up helpers ------------------- */
+
+// Learn an agent's phone from a call.summary event (agent.uuid / name / contact).
+export const setAgentPhone = async ({ uuid, name, phone }) => {
+  const p = last10(phone);
+  if (p.length !== 10) return 0;
+  const [r] = await pool.query(
+    `UPDATE ivr_agents SET phone = ?
+      WHERE (? <> '' AND myoperator_uuid = ?) OR LOWER(ivr_name) = LOWER(?)`,
+    [p, uuid || "", uuid || "", name || ""],
+  );
+  return r.affectedRows;
+};
+
+export const getAgentByPhone = async (phone) => {
+  const p = last10(phone);
+  if (p.length !== 10) return null;
+  const [rows] = await pool.query(
+    `SELECT id, ivr_name AS ivrName FROM ivr_agents WHERE phone = ? AND is_active = 1 LIMIT 1`,
+    [p],
+  );
+  return rows[0] || null;
+};
+
+// Every Pinaak login that controls this agent (login map + the agent's own staff id).
+export const getLoginStaffIds = async (agentId) => {
+  const [rows] = await pool.query(
+    `SELECT staff_id FROM ivr_login_map WHERE agent_id = ?
+     UNION
+     SELECT staff_id FROM ivr_agents WHERE id = ? AND staff_id IS NOT NULL`,
+    [agentId, agentId],
+  );
+  return rows.map((r) => Number(r.staff_id));
+};
+
+// Name + latest lead for one number (same matching as the call tables).
+export const findContactByPhone = async (phone) => {
+  const [row] = await attachContacts([{ phone: last10(phone) }]);
+  return row.contact;
+};
+
+// Re-read stored webhook payloads (call.summary) to fill ivr_agents.phone.
+export const learnAgentPhonesFromStoredEvents = async () => {
+  const [rows] = await pool.query(
+    `SELECT body_json FROM ivr_webhook_events WHERE body_json LIKE '%call.summary%' ORDER BY id DESC LIMIT 500`,
+  );
+  const seen = new Map();
+  for (const r of rows) {
+    try {
+      const b = JSON.parse(r.body_json);
+      for (const leg of b?.payload?.legs ?? []) {
+        if (leg?.agent?.contact) seen.set(leg.agent.contact, leg.agent);
+      }
+    } catch {
+      /* skip bad row */
+    }
+  }
+  let linked = 0;
+  const unmatched = [];
+  for (const [contact, a] of seen) {
+    const n = await setAgentPhone({ uuid: a.uuid, name: a.name, phone: contact });
+    if (n > 0) linked += 1;
+    else unmatched.push({ name: a.name, phone: contact });
+  }
+  return { agentsSeen: seen.size, linked, unmatched };
+};
+
+/* ------------------- webhook: instant call log + click-to-call audit ------------------- */
+
+// call.end webhook -> a row right away. INSERT IGNORE: if the API sync already
+// saved this call (authoritative data) nothing is overwritten; the next sync
+// also corrects phone/time/agents of rows created here.
+export const insertCallFromWebhook = async (c) => {
+  const [r] = await pool.query(
+    `INSERT IGNORE INTO ivr_call_logs
+       (uid, source, call_type, phone, call_time, via, direction, response,
+        missed_by, received_by, transferred_to, duration_sec, recording_file, raw_json)
+     VALUES (?, 'webhook', NULL, ?, ?, ?, ?, ?, ?, ?, NULL, ?, ?, ?)`,
+    [
+      c.uid, c.phone, c.callTime, c.via, c.direction, c.response,
+      c.missedAgents.join(", ") || null, c.receivedAgents.join(", ") || null,
+      c.durationSec, c.recordingFile, c.rawJson,
+    ],
+  );
+  if (r.affectedRows > 0) {
+    const agentRows = [
+      ...c.missedAgents.map((n) => [c.uid, n, "missed"]),
+      ...c.receivedAgents.map((n) => [c.uid, n, "received"]),
+    ];
+    if (agentRows.length) {
+      await pool.query(`INSERT IGNORE INTO ivr_call_agents (call_uid, agent_name, role) VALUES ?`, [agentRows]);
+    }
+  }
+  return r.affectedRows;
+};
+
+// call.summary arrives right after call.end and carries the department name.
+export const setCallVia = async (uid, via) => {
+  const [r] = await pool.query(
+    `UPDATE ivr_call_logs SET via = ? WHERE uid = ? AND (via IS NULL OR via = '')`,
+    [via, uid],
+  );
+  return r.affectedRows;
+};
+
+export const logClickCall = async ({ staffId, agentId, phone, referenceId, ok, response }) => {
+  try {
+    await pool.query(
+      `INSERT INTO ivr_click_calls (staff_id, agent_id, phone, reference_id, ok, response_text, created_at)
+       VALUES (?, ?, ?, ?, ?, ?, ?)`,
+      [staffId, agentId, phone, referenceId, ok ? 1 : 0, String(response ?? "").slice(0, 2000), nowIST()],
+    );
+  } catch (e) {
+    console.error("IVR click-call log failed:", e.message);
+  }
 };

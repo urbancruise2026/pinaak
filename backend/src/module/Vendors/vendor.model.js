@@ -4,6 +4,9 @@ import { hrmsPool, pool } from "../../config/mySqlDB.js";
 const toNull = (val) =>
   val === "" || val === undefined || val === null ? null : val;
 
+// array aaye to "bus,cab" string bana do, warna jaisa hai waisa
+const toCategory = (v) => (Array.isArray(v) ? v.join(",") : v);
+
 const isEmpty = (v) => v === undefined || v === null || v === "";
 
 // form ke document keys -> vendor_documents.doc_type
@@ -221,7 +224,7 @@ export const createVendorModel = async (data) => {
         toNull(data.email),
         toNull(data.phone),
         toNull(data.region),
-        toNull(data.vendorCategory),
+        toNull(toCategory(data.vendorCategory)),
       ],
     );
     const vendorId = res.insertId;
@@ -259,7 +262,7 @@ export const updateVendorModel = async (id, data) => {
       email: data.email,
       phone: data.phone,
       region: data.region,
-      vendor_category: data.vendorCategory,
+      vendor_category: toCategory(data.vendorCategory),
     };
 
     const entries = Object.entries(core).filter(([, v]) => v !== undefined);
@@ -514,6 +517,149 @@ export const getRegionByStateIdModel = async (stateId) => {
     };
   } catch (error) {
     console.error("Error in getRegionByStateIdModel:", error);
+    throw error;
+  }
+};
+
+/* ---------- Missing fields check ---------- */
+
+// ye columns check nahi karne (system columns)
+const SKIP_COLS = new Set([
+  "id",
+  "vendor_id",
+  "created_at",
+  "updated_at",
+  "uploaded_at",
+]);
+
+const isBlank = (v) =>
+  v === null || v === undefined || (typeof v === "string" && v.trim() === "");
+
+// row ke wo column names jo null / empty hain
+const blankCols = (row, extraSkip = []) =>
+  Object.keys(row).filter(
+    (k) => !SKIP_COLS.has(k) && !extraSkip.includes(k) && isBlank(row[k]),
+  );
+
+const groupBy = (rows, key = "vendor_id") => {
+  const map = new Map();
+  for (const r of rows) {
+    if (!map.has(r[key])) map.set(r[key], []);
+    map.get(r[key]).push(r);
+  }
+  return map;
+};
+
+// vendorId diya to sirf ek vendor, warna saare vendors
+export const getVendorsMissingFieldsModel = async (vendorId = null) => {
+  try {
+    const where = vendorId ? "WHERE id = ?" : "";
+    const childWhere = vendorId ? "WHERE vendor_id = ?" : "";
+    const params = vendorId ? [vendorId] : [];
+
+    const [vendors] = await pool.execute(
+      `SELECT * FROM vendors ${where} ORDER BY id DESC`,
+      params,
+    );
+    const [personal] = await pool.execute(
+      `SELECT * FROM vendor_personal ${childWhere}`,
+      params,
+    );
+    const [companies] = await pool.execute(
+      `SELECT * FROM vendor_companies ${childWhere} ORDER BY id`,
+      params,
+    );
+    const [garages] = await pool.execute(
+      `SELECT * FROM vendor_garages ${childWhere} ORDER BY id`,
+      params,
+    );
+    const [contacts] = await pool.execute(
+      `SELECT * FROM vendor_contacts ${childWhere}`,
+      params,
+    );
+    const [docs] = await pool.execute(
+      `SELECT * FROM vendor_documents ${childWhere}`,
+      params,
+    );
+
+    const personalMap = new Map(personal.map((p) => [p.vendor_id, p]));
+    const companyMap = groupBy(companies);
+    const garageMap = groupBy(garages);
+    const contactMap = groupBy(contacts);
+    const docMap = groupBy(docs);
+
+    return vendors.map((v) => {
+      // 1) vendors table
+      const vendorMissing = blankCols(v);
+
+      // 2) vendor_personal (1:1)
+      const p = personalMap.get(v.id);
+      const personalMissing = p ? blankCols(p) : ["(row hi nahi hai)"];
+
+      // 3) vendor_companies (1:many)
+      const companyList = companyMap.get(v.id) ?? [];
+      const companiesMissing = companyList.map((c) => ({
+        id: c.id,
+        companyName: c.company_name,
+        missing: blankCols(c),
+      }));
+
+      // 4) vendor_garages (1:many)
+      const garageList = garageMap.get(v.id) ?? [];
+      const garagesMissing = garageList.map((g) => ({
+        id: g.id,
+        garageAddress: g.garage_address,
+        missing: blankCols(g),
+      }));
+
+      // 5) vendor_contacts (owner / ops_manager / accountant)
+      const vContacts = contactMap.get(v.id) ?? [];
+      const contactsMissing = {};
+      for (const [role] of CONTACT_ROLES) {
+        const c = vContacts.find((x) => x.role === role);
+        contactsMissing[role] = c
+          ? blankCols(c, ["role"])
+          : ["(row hi nahi hai)"];
+      }
+
+      // 6) vendor_documents
+      const vDocs = docMap.get(v.id) ?? [];
+      const uploaded = new Set(
+        vDocs.filter((d) => !isBlank(d.file_path)).map((d) => d.doc_type),
+      );
+      const documentsMissing = Object.values(DOC_TYPE_MAP).filter(
+        (t) => !uploaded.has(t),
+      );
+
+      const result = {
+        vendorId: v.id,
+        venderCode: v.vender_code,
+        name: v.name,
+        missing: {
+          vendor: vendorMissing,
+          personal: personalMissing,
+          companies: companyList.length
+            ? companiesMissing
+            : "(koi company nahi hai)",
+          garages: garageList.length ? garagesMissing : "(koi garage nahi hai)",
+          contacts: contactsMissing,
+          documents: documentsMissing,
+        },
+      };
+
+      // total count (summary / filter ke liye)
+      result.totalMissing =
+        vendorMissing.length +
+        personalMissing.length +
+        companiesMissing.reduce((s, c) => s + c.missing.length, 0) +
+        garagesMissing.reduce((s, g) => s + g.missing.length, 0) +
+        Object.values(contactsMissing).reduce((s, a) => s + a.length, 0) +
+        documentsMissing.length;
+
+      return result;
+    });
+  } catch (error) {
+    console.error("Error in getVendorsMissingFieldsModel:", error);
     throw error;
   }
 };

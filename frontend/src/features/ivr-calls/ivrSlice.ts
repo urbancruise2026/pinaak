@@ -2,6 +2,7 @@ import { createAsyncThunk, createSlice } from "@reduxjs/toolkit";
 import * as api from "./ivrApi";
 import type {
   AccessMapAgent,
+  CallSort,
   AgentsResult,
   BreakActionResult,
   BreakReport,
@@ -63,11 +64,11 @@ const msg = (e: unknown, fallback: string) => (e instanceof Error ? e.message : 
 
 export const fetchCalls = createAsyncThunk<
   CallsResult,
-  { filters: IvrFilters; page: number },
+  { filters: IvrFilters; page: number; sort?: CallSort },
   { rejectValue: string }
->("ivr/fetchCalls", async ({ filters, page }, { rejectWithValue }) => {
+>("ivr/fetchCalls", async ({ filters, page, sort }, { rejectWithValue }) => {
   try {
-    return await api.getCalls(filters, page);
+    return await api.getCalls(filters, page, 25, sort);
   } catch (e) {
     return rejectWithValue(msg(e, "Failed to fetch calls"));
   }
